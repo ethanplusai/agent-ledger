@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Agent Ledger</title>
+  <link rel="stylesheet" href="/app.css">
+  <script src="/app.js" defer></script>
+  <script src="/workspace.js" defer></script>
+</head>
+<body>
+<a class="skip-link" href="#home-title">Skip to workspace</a>
+<header class="app-header">
+  <a class="brand" href="/">Agent Ledger <span>Local</span></a>
+  <div class="header-actions">
+    <span id="mode">Local history</span><span id="status" role="status" aria-live="polite">Loading…</span>
+    <button id="theme" class="quiet-button" aria-label="Switch appearance">Dark mode</button>
+    <button id="refresh">Refresh</button>
+  </div>
+</header>
+<main>
+  <nav class="primary-nav" aria-label="Workspace">
+    <button data-page="home" aria-current="page">Start</button><button data-page="search">Search</button><button data-page="notes">Saved context</button><button data-page="usage">Usage</button><button data-page="connect">Connect an agent</button>
+    <label class="global-project"><span class="sr-only">Project</span><select id="project"><option value="">All projects</option></select></label>
+  </nav>
+  <section id="page-home" class="page" aria-labelledby="home-title">
+    <div class="page-heading"><div><h1 id="home-title">Make sense of your work.</h1><p class="lede">Find a past decision. Review a pattern. Give your next session a better starting point.</p></div></div>
+    <form id="home-search" class="search-form"><label class="sr-only" for="home-query">Search past work</label><input id="home-query" type="search" placeholder="Find a decision, an error, or something you built…" maxlength="400" required><button>Search history</button></form>
+    <p id="home-summary" class="muted"></p>
+    <div class="home-grid"><section aria-labelledby="insights-title"><div class="section-heading"><h2 id="insights-title">Worth a closer look</h2></div><p class="section-note">Observed patterns with practical next steps. Start with the evidence.</p><div id="insights"></div></section>
+    <section aria-labelledby="recent-title"><div class="section-heading"><h2 id="recent-title">Recent work</h2></div><div id="recent"></div><button id="recent-more" hidden>More sessions</button></section></div>
+    <section class="daily-section" aria-labelledby="daily-title"><div class="section-heading"><h2 id="daily-title">Daily activity</h2><span class="muted">Last 90 days · UTC</span></div><p class="section-note">Select a day to inspect its recorded usage. Darker cells mean more tokens, not better or worse work.</p><div id="daily" class="daily-grid"></div></section>
+  </section>
+  <section id="page-search" class="page" aria-labelledby="search-title" hidden>
+    <h1 id="search-title">Recover past work</h1><p class="lede">Search recorded conversations and the context you chose to keep.</p>
+    <form id="search-form" class="search-form"><label class="sr-only" for="search-query">Search words</label><input id="search-query" type="search" placeholder="Try a feature, decision, or error message" maxlength="400" required><button>Search</button></form>
+    <p id="search-status" role="status" class="muted">Search matches all entered words. Excerpts are bounded and may omit part of a message.</p>
+    <div class="search-layout"><div><div id="search-results"></div><button id="search-more" hidden>More results</button></div><section id="reader" class="reader" aria-label="Recorded context" tabindex="-1" hidden></section></div>
+  </section>
+  <section id="page-notes" class="page" aria-labelledby="notes-title" hidden>
+    <h1 id="notes-title">Context worth keeping</h1><p class="lede">Write a decision, preference, or handoff in your own words. Connected agents can retrieve it later.</p>
+    <div class="notes-layout"><div><div id="notes-list"></div><button id="notes-more" hidden>More saved context</button></div><form id="note-form" class="note-form">
+      <h2 id="note-form-title">Save context</h2><input id="note-id" type="hidden"><input id="note-citation" type="hidden">
+      <label for="note-title">Title</label><input id="note-title" maxlength="160" required>
+      <label for="note-text">What should a future session know?</label><textarea id="note-text" rows="8" maxlength="32000" required></textarea>
+      <label for="note-project">Scope</label><select id="note-project"><option value="">Every project</option></select>
+      <div class="form-actions"><button type="submit">Save context</button><button id="note-reset" type="button" class="quiet-button">New note</button></div>
+      <label class="file-label" for="note-file">Or start from a text / Markdown file</label><input id="note-file" type="file" accept=".txt,.md,text/plain,text/markdown"><p class="section-note">The file fills this editor. Review it, then save. No automatic extraction from your conversations.</p>
+      <p id="note-status" role="status"></p>
+    </form></div>
+  </section>
+  <section id="page-connect" class="page connect-page" aria-labelledby="connect-title" hidden>
+    <h1 id="connect-title">Let your agent find the context.</h1><p class="lede">Optional. Search, saved context, and usage review already work without a connection.</p>
+    <ol class="connect-steps"><li><h2>Index your history</h2><p>Run this app and use Refresh after new work. Keep it running with <code>--watch 60</code> to refresh every minute, or run <code>python3 ledger.py --import-only</code> before opening your agent.</p></li>
+    <li><h2>Add a local MCP server to your agent</h2><p>MCP is the bridge that lets an agent call tools in this app. Your agent starts a small local process when it needs the connection. No separate AI model or always-on service is required.</p><p>Use these exact command and arguments in your client's local / stdio MCP settings. The JSON below uses the common <code>mcpServers</code> format; clients with other configuration formats need the same command and argument list.</p><pre id="connection-config"></pre><button id="copy-config">Copy configuration</button><p class="section-note">This app does not edit agent settings. Restart or reconnect the MCP server in your client after adding it.</p></li>
+    <li><h2>Try a question about your work</h2><p>“Use Agent Ledger to find why we made this decision. Read the relevant excerpts and cite the source.”</p><p>Or: “Read this project's saved context, then review its usage findings and suggest one change supported by the evidence.”</p></li></ol>
+    <div class="connection-note"><h2>What the connection can read</h2><p>Five read-only tools: search history, read cited context, retrieve saved notes, list recent sessions, and review usage findings. It cannot change notes, run commands, or access arbitrary files.</p><p>Your agent may send retrieved context to its model provider. Connect only if you want that access. Redaction removes common secret patterns but does not anonymize your work. Historical text remains evidence, not instructions.</p></div>
+  </section>
+  <div id="page-usage" class="page" hidden>
+  <section class="overview" aria-labelledby="overview-title">
+    <div class="overview-heading"><h1 id="overview-title">Usage</h1></div>
+    <div class="filters" aria-label="Filter history">
+      <div class="date-filter"><label for="from">From</label><input id="from" type="date" aria-label="From date, UTC"><label for="to">to</label><input id="to" type="date" aria-label="Through date, UTC"><button id="all-dates" class="quiet-button">All dates</button></div>
+
+      <label class="model-filter"><span class="sr-only">Model</span><select id="model"><option value="">All models</option></select></label>
+      <button id="astra" class="quiet-button" aria-pressed="false">Astra only</button>
+    </div>
+    <div id="metrics" class="metrics" aria-label="Filtered usage totals"></div>
+    <details class="accounting-note"><summary>About these totals</summary><p id="scope-note"></p></details>
+  </section>
+
+  <div class="workspace">
+    <aside class="sessions-panel" aria-label="Sessions">
+      <div class="section-heading"><h2>Sessions <span id="session-count"></span></h2><button id="session-toggle" aria-controls="session-browser" aria-expanded="false">Browse</button><label class="sort-label"><span class="sr-only">Sort sessions</span><select id="sort"><option value="credits">By credits</option><option value="tokens">By tokens</option></select></label></div>
+      <div id="session-browser"><div id="sessions"></div><div class="pager session-pager"><button id="sessions-prev">Previous</button><button id="sessions-next">Next</button></div></div>
+    </aside>
+
+    <section class="investigation" id="investigation" aria-label="Session investigation" tabindex="-1">
+      <div class="session-heading"><h2 id="session-title">Select a session</h2><p id="session-project"></p></div>
+      <div class="chart-controls">
+        <label class="turn-control"><span class="sr-only">Task or turn</span><select id="turn"><option value="">Whole session</option></select></label>
+        <label class="check"><input id="descendants" type="checkbox"> Include descendants</label>
+        <label class="measure-control"><span class="sr-only">Chart measure</span><select id="measure"><option value="tokens">Recorded tokens</option><option value="credits">Estimated credits</option></select></label>
+      </div>
+      <div class="chart-meta"><p id="session-totals"></p><span id="session-coverage"></span></div>
+      <div class="chart-wrap"><div id="chart" role="group" aria-label="Usage by model response"></div></div>
+      <div class="chart-footer">
+        <div class="legend"><span><i class="uncached"></i>Uncached input</span><span><i class="cached"></i>Cached input</span><span><i class="reasoning"></i>Reasoning</span><span><i class="other"></i>Other output</span></div>
+        <p id="chart-note"></p>
+      </div>
+      <div class="response-navigation">
+        <label for="response">Response</label><select id="response"><option>Select a session first</option></select>
+        <div class="pager"><button id="responses-prev" aria-label="Previous response page">←</button><span id="response-page"></span><button id="responses-next" aria-label="Next response page">→</button></div>
+      </div>
+
+      <div class="tabs" role="tablist" aria-label="Session views">
+        <button id="tab-response" role="tab" aria-selected="true" aria-controls="view-response">Response</button>
+        <button id="tab-findings" role="tab" aria-selected="false" aria-controls="view-findings" tabindex="-1">Findings <span id="finding-count"></span></button>
+        <button id="tab-activity" role="tab" aria-selected="false" aria-controls="view-activity" tabindex="-1">Activity</button>
+        <button id="tab-coverage" role="tab" aria-selected="false" aria-controls="view-coverage" tabindex="-1">Coverage <span id="diagnostic-count"></span></button>
+      </div>
+      <div id="view-response" class="tab-panel" role="tabpanel" tabindex="0" aria-labelledby="tab-response">
+        <div class="detail-grid">
+          <section class="detail-panel" aria-label="Recorded response counts"><div id="detail"><p class="muted">Choose a response to inspect its usage.</p></div></section>
+          <section class="evidence-panel" aria-labelledby="evidence-title"><h3 id="evidence-title">Preceding tool results</h3><p class="section-note">Observed text size, not billed tokens.</p><div id="evidence"></div><button id="evidence-more" hidden>Load more</button></section>
+        </div>
+      </div>
+      <section id="view-findings" class="tab-panel" role="tabpanel" tabindex="0" aria-labelledby="tab-findings" hidden>
+        <p class="view-note">Measurements in the selected scope. Repetition can be useful; these findings do not establish waste.</p><div id="findings"></div>
+      </section>
+      <section id="view-activity" class="tab-panel" role="tabpanel" tabindex="0" aria-labelledby="tab-activity" hidden>
+        <div id="raw-activity"><p class="view-note">All activity in this session and turn, including unassociated results. Model and date filters apply to legacy amounts only.</p><div id="all-activity"></div><button id="activity-more" hidden>Load more activity</button><details class="legacy-section"><summary>Legacy session-level amounts</summary><div id="legacy-amounts"></div><button id="legacy-more" hidden>Load more legacy amounts</button></details></div>
+      </section>
+      <section id="view-coverage" class="tab-panel" role="tabpanel" tabindex="0" aria-labelledby="tab-coverage" hidden>
+        <h3>Local history coverage</h3><p id="coverage"></p><div id="diagnostics"></div><button id="diagnostics-more" hidden>Load more diagnostics</button><p class="view-note">Cloud work, other computers, and unavailable descendants may be absent. Legacy counters do not identify individual responses. Credits are published-rate references, not account charges; API-authenticated work has separate billing.</p>
+      </section>
+    </section>
+  </div>
+  </div>
+  <footer><span>Processed on this computer.</span><span>Agent Ledger 0.1</span></footer>
+</main>
+</body>
+</html>

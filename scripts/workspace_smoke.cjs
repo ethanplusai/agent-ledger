@@ -1,0 +1,28 @@
+'use strict';
+const {chromium}=require('playwright');
+const {spawn}=require('node:child_process');
+const path=require('node:path');
+const assert=require('node:assert/strict');
+const root=path.resolve(__dirname,'..');
+(async()=>{
+ const child=spawn(process.env.PYTHON||'python3',['ledger.py','--demo','--no-open'],{cwd:root,stdio:['ignore','pipe','pipe']});let browser;
+ try{
+  const url=await new Promise((resolve,reject)=>{let text='';const timer=setTimeout(()=>reject(new Error('Startup timed out')),20000);child.on('error',reject);child.on('exit',code=>reject(new Error('Server exited '+code)));child.stdout.on('data',b=>{text+=b;const m=text.match(/http:\/\/127\.0\.0\.1:\d+\/#[A-Za-z0-9_-]+/);if(m){clearTimeout(timer);resolve(m[0]);}});});
+  browser=await chromium.launch({headless:true});const page=await browser.newPage({viewport:{width:1440,height:1100}});const errors=[],remote=[];page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',route=>{if(!route.request().url().startsWith(new URL(url).origin+'/')){remote.push(route.request().url());return route.abort();}return route.continue();});
+  await page.goto(url);await page.waitForSelector('.insight');assert.equal(await page.locator('#page-home').isVisible(),true);assert.equal(await page.locator('.day').count(),90);
+  await page.locator('.insight summary').first().click();assert.match(await page.locator('.insight').first().innerText(),/What to try/);
+  for(const width of [1440,736,360]){await page.setViewportSize({width,height:1100});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'Home overflow '+width);if(process.argv.includes('--screenshots'))await page.screenshot({path:path.join(root,'docs/screenshots/demo-home-'+width+'.png'),fullPage:true});}
+  await page.setViewportSize({width:1440,height:1100});await page.fill('#home-query','SQLite');await page.locator('#home-search button').click();await page.waitForSelector('.search-result');assert.match(await page.locator('#search-results').innerText(),/SQLite/);await page.locator('#search-results button').first().click();await page.waitForSelector('.selected-message');assert.match(await page.locator('#reader').innerText(),/Historical conversation/);
+  await page.getByRole('button',{name:'Save a takeaway',exact:true}).click();await page.fill('#note-title','Local search decision');await page.fill('#note-text','Use SQLite FTS5 for offline search; keep setup to one command.');await page.getByRole('button',{name:'Save context',exact:true}).click();await page.waitForSelector('.saved-note');assert.match(await page.locator('#notes-list').innerText(),/Local search decision/);
+  await page.getByRole('button',{name:'Read / edit',exact:true}).click();await page.fill('#note-text','Use SQLite FTS5. Run focused tests before release.');await page.getByRole('button',{name:'Save context',exact:true}).click();await page.waitForFunction(()=>document.getElementById('notes-list').textContent.includes('focused tests'));
+  for(const width of [736,360]){await page.setViewportSize({width,height:1100});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'Notes overflow '+width);}
+  await page.setViewportSize({width:1440,height:1100});await page.click('[data-page=connect]');await page.waitForFunction(()=>document.getElementById('connection-config').textContent.includes('--mcp'));assert.match(await page.locator('#page-connect').innerText(),/model provider/);
+  await page.click('[data-page=home]');await page.waitForSelector('.insight');await page.locator('.insight>button').first().click();await page.waitForSelector('#evidence .activity');assert.equal(await page.locator('#page-usage').isVisible(),true);
+  await page.click('[data-page=home]');await page.waitForSelector('.day');await page.locator('.day').last().click();await page.waitForFunction(()=>document.getElementById('from').value===document.getElementById('to').value&&document.getElementById('from').value!=='');assert.equal(await page.locator('#page-usage').isVisible(),true);
+  await page.click('[data-page=search]');await page.fill('#search-query','no_match_impossible');await page.locator('#search-form button').click();await page.waitForFunction(()=>document.getElementById('search-status').textContent.startsWith('No matches'));
+  await page.route('**/api/search?*',route=>route.fulfill({status:500,contentType:'application/json',body:JSON.stringify({error:'Synthetic failure'})}));await page.fill('#search-query','SQLite');await page.locator('#search-form button').click();await page.waitForFunction(()=>document.getElementById('search-status').textContent.includes('Search failed'));await page.unroute('**/api/search?*');await page.locator('#search-form button').click();await page.waitForSelector('.search-result');
+  await page.click('[data-page=notes]');await page.locator('.delete-note summary').first().click();await page.getByRole('button',{name:'Delete this note',exact:true}).click();await page.waitForFunction(()=>document.querySelectorAll('.saved-note').length===0);
+  await page.click('[data-page=home]');await page.waitForSelector('.insight');await page.click('#theme');if(process.argv.includes('--screenshots'))await page.screenshot({path:path.join(root,'docs/screenshots/demo-home-dark.png'),fullPage:true});
+  assert.deepEqual(errors,[]);assert.deepEqual(remote,[]);console.log('Workspace flows passed: findings to evidence, search/read/save/edit/delete, calendar, MCP configuration, empty/error recovery, responsive layouts, no external requests.');
+ }finally{if(browser)await browser.close();child.kill('SIGINT');}
+})().catch(e=>{console.error(e.stack);process.exitCode=1;});
