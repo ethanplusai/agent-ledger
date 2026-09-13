@@ -25,7 +25,16 @@ function filters() {return {from:$('from').value,to:$('to').value,project:$('pro
 function scope() {return {...filters(),session:state.session,turn:$('turn').value,descendants:$('descendants').checked?'1':''};}
 function option(select, label, value) {const o = el('option', label); o.value=value; select.append(o);}
 function metrics(t) {
-  clear('metrics');
+  clear('metrics');clear('usage-explanation');
+  $('usage-explanation').append(el('h2','What used your tokens?'));
+  $('usage-explanation').append(el('p',t.total ? `${Math.round(t.input/t.total*100)}% was input sent to the model (${compact(t.input)} tokens); ${compact(t.output)} was generated output. Every response can send earlier conversation and tool results again.` : 'No recorded usage matches these filters.'));
+  $('usage-explanation').append(el('p',t.cached==null ? 'The cache breakdown is incomplete. Token volume does not establish your account usage or charges.' : `${compact(t.cached)} input tokens were read from cache. Cached tokens still appear in token totals; their credit rate can be lower. These totals do not show your subscription allowance.`, 'small muted'));
+
+  if(t.credit_components&&Number(t.credits)>0){
+    const [kind,value]=Object.entries(t.credit_components).sort((a,b)=>Number(b[1])-Number(a[1]))[0];
+    const names={uncached_input:'Uncached input',cached_input:'Cached input',output:'Generated output'};
+    $('usage-explanation').append(el('p',`${names[kind]} accounts for ${Math.round(Number(value)/Number(t.credits)*100)}% of ${t.unpriced?'the available':'the'} estimated credits (${credits(value,2)} of ${credits(t.credits,2)}).${t.unpriced?' Unpriced records are excluded from this comparison.':''}`));
+  }
   const values = [
     ['Recorded tokens', compact(t.total), compact(t.input)+' input · '+compact(t.output)+' output'],
     ['Estimated credits', credits(t.credits,2), t.credit_status === 'partial' ? 'Partial · '+t.unpriced+' unpriced records' : 'Published-rate reference'],
@@ -62,13 +71,14 @@ async function overview(focus='') {
   else {const selected=data.sessions.find(s=>s.sid===state.session) || data.sessions[0];if(state.session!==selected.sid){state.responseOffset=0;$('turn').value='';}state.session=selected.sid;document.querySelectorAll('.session').forEach(n=>n.setAttribute('aria-pressed',String(n.dataset.session===state.session)));await openSession(selected);}
   status('Local history ready');
 }
-function resetSession(){state.session='';state.responses=[];state.selected=null;$('session-title').textContent='No session selected';$('session-project').textContent='';for(const id of ['chart','detail','evidence','findings','session-totals','all-activity','legacy-amounts','diagnostics','finding-count','diagnostic-count','session-coverage','response-page'])clear(id);clear('turn');option($('turn'),'Whole session','');clear('response');option($('response'),'No responses','');for(const id of ['evidence-more','activity-more','legacy-more','diagnostics-more'])$(id).hidden=true;}
+function resetSession(){state.session='';state.responses=[];state.selected=null;$('session-title').textContent='No session selected';$('session-project').textContent='';for(const id of ['chart','context-summary','context-readout','context-rows','detail','evidence','findings','session-totals','all-activity','legacy-amounts','diagnostics','finding-count','diagnostic-count','session-coverage','response-page'])clear(id);clear('turn');option($('turn'),'Whole session','');clear('response');option($('response'),'No responses','');for(const id of ['evidence-more','activity-more','legacy-more','diagnostics-more'])$(id).hidden=true;}
 async function openSession(session) {
   if(session){$('session-title').textContent=session.title||'Session · '+session.first.slice(0,10);$('session-project').textContent=session.project+(session.parent?' · Parent: '+session.parent+' · '+(session.relationship||'relationship unspecified'):'');}
   const selectedScope=JSON.stringify(scope());
   const [data, findings, diagnostics]=await Promise.all([api('session',{...scope(),offset:state.responseOffset}),api('findings',scope()),api('diagnostics',{session:state.session})]);
   if(selectedScope!==JSON.stringify(scope()))return;
   state.responses=data.responses;
+  renderContext(data);
   const turn=$('turn').value; clear('turn'); option($('turn'),'Whole session',''); data.turns.forEach((t,i)=>{option($('turn'),'Task '+(i+1)+' · '+t.records+' records',t.turn);$('turn').lastElementChild.title=t.turn;});$('turn').value=turn;
   $('session-coverage').textContent=data.totals.legacy||data.totals.invalid?'Partial coverage':'';
   $('session-totals').textContent=compact(data.totals.total)+' tokens · '+credits(data.totals.credits,2)+' estimated credits'+(data.totals.unpriced?' (partial)':'')+' · '+data.totals.responses+' responses'+(data.totals.legacy?' · '+data.totals.legacy+' legacy amounts excluded from response chart':'');
@@ -83,31 +93,56 @@ const svgNS='http://www.w3.org/2000/svg';
 function svgEl(tag,attrs,text){const n=document.createElementNS(svgNS,tag);for(const[k,v]of Object.entries(attrs))n.setAttribute(k,v);if(text!=null)n.textContent=text;return n;}
 function drawChart(){
   clear('chart');const rs=state.responses;if(!rs.length)return;
-  const credit=$('measure').value==='credits';
-  const parts=rs.map(r=>credit?r.estimate.parts?.map(Number):r.usage.errors.length?null:[r.usage.uncached_input,r.usage.cached_input_tokens,r.usage.reasoning_output_tokens??0,r.usage.other_output??r.usage.output_tokens]);
+  const credit=$('measure').value==='credits',context=$('measure').value==='context';
+  document.querySelectorAll('.legend span').forEach((n,i)=>n.hidden=context&&i>1);
+  const parts=rs.map(r=>credit?r.estimate.parts?.map(Number):r.usage.errors.length?null:[r.usage.uncached_input,r.usage.cached_input_tokens,context?0:r.usage.reasoning_output_tokens??0,context?0:r.usage.other_output??r.usage.output_tokens]);
+  if(context)rs.forEach((r,i)=>{if(!r.usage.errors.length&&r.usage.cached_input_tokens==null)parts[i]=[r.usage.input_tokens,0,0,0];});
   const sums=parts.map(p=>p&&p.every(x=>x!=null)?p.reduce((a,b)=>a+b,0):null);const max=Math.max(1,...sums.filter(x=>x!=null));
   const width=Math.max(270,Math.round($('chart').clientWidth)), height=Math.round($('chart').clientHeight), top=14, bottom=height-26, left=40, plot=width-left-8;
-  const svg=svgEl('svg',{viewBox:`0 0 ${width} ${height}`,role:'img','aria-label':credit?'Estimated credits by response':'Recorded tokens by response'});
+  const svg=svgEl('svg',{viewBox:`0 0 ${width} ${height}`,role:'img','aria-label':credit?'Estimated credits by response':context?'Context sent per response':'Recorded tokens by response'});
   const step=plot/rs.length;
   for(let i=0;i<=2;i++){const y=bottom-(bottom-top)*i/2;svg.append(svgEl('line',{x1:left,x2:width-8,y1:y,y2:y,class:'gridline'}),svgEl('text',{x:left-7,y:y+3,'text-anchor':'end',class:'axis-text'},compact(max*i/2)));}
-  rs.forEach((r,i)=>{const x=left+i*step+step*.17;let y=bottom;const g=svgEl('g',{class:'bar'+(r.id===state.selected?' selected':''),'data-id':r.id,tabindex:0,role:'button','aria-label':`Response ${state.responseOffset+i+1}, ${sums[i]==null?'breakdown unavailable':credit?credits(sums[i])+' credits':number(sums[i])+' tokens'}`});
+  rs.forEach((r,i)=>{const x=left+i*step+step*.17;let y=bottom;const g=svgEl('g',{class:'bar'+(r.id===state.selected?' selected':''),'data-id':r.id,tabindex:0,role:'button','aria-label':`Response ${state.responseOffset+i+1}, ${sums[i]==null?'breakdown unavailable':credit?credits(sums[i])+' credits':number(sums[i])+(context?' context tokens; '+number(r.usage.cached_input_tokens)+' cached; change '+contextChange(r.context.change):' tokens')}`});
     if(sums[i]==null){g.append(svgEl('rect',{x,y:bottom-8,width:step*.66,height:8,class:'unavailable'}));}
-    else parts[i].forEach((v,j)=>{const h=v/max*(bottom-top);y-=h;g.append(svgEl('rect',{x,y,width:step*.66,height:h,class:['uncached','cached','reasoning','other'][j]}));});
+    else parts[i].forEach((v,j)=>{const h=v/max*(bottom-top);y-=h;g.append(svgEl('rect',{x,y,width:step*.66,height:h,class:context&&r.usage.cached_input_tokens==null?'unavailable':['uncached','cached','reasoning','other'][j]}));});
     // A transparent hit target makes very small/zero responses selectable.
     g.append(svgEl('rect',{x,y:top,width:step*.66,height:bottom-top,fill:'transparent',stroke:'none'}));
     g.append(svgEl('line',{x1:x,x2:x+step*.66,y1:bottom+4,y2:bottom+4,class:'selection-line'}));
-    g.append(svgEl('title',{},`Response ${state.responseOffset+i+1}: ${r.model||'unknown'} · ${number(r.usage.displayed_total)} tokens`));
+    g.append(svgEl('title',{},`Response ${state.responseOffset+i+1}: ${r.model||'unknown'} · ${number(r.usage.input_tokens)} context tokens · ${number(r.usage.cached_input_tokens)} cached · ${number(r.usage.output_tokens)} output tokens`));
     g.addEventListener('click',guarded(async()=>{await setTab('response');await selectResponse(r.id);}));g.addEventListener('keydown',guarded(e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();return setTab('response').then(()=>selectResponse(r.id));}}));svg.append(g);
     const stride=Math.max(1,Math.ceil(rs.length/(width/35)));
     if(i===0||i===rs.length-1||(i%stride===0&&i<rs.length-stride))svg.append(svgEl('text',{x:x+step*.33,y:height-7,'text-anchor':'middle',class:'axis-text'},state.responseOffset+i+1));
   });
-  $('chart').append(svg);$('chart-note').textContent=(sums.some(x=>x==null)?'Gray marks: unavailable breakdown. ':'')+(credit?'Per-response rate estimates':'Input includes reprocessed context. Unsplit output uses Other output.');
+  $('chart').append(svg);$('chart-note').textContent=(sums.some(x=>x==null)?'Gray marks: unavailable breakdown. ':'')+(context&&rs.some(r=>!r.usage.errors.length&&r.usage.cached_input_tokens==null)?'Gray bars: input known, cache split unavailable. ':'')+(credit?'Per-response rate estimates; not account charges.':context?'Height = input sent with this response, including cached context. This is not cumulative usage. Select a bar to see the change.':'Input includes reprocessed context. Unsplit output uses Other output.');
+}
+function contextChange(v){return v==null?'No baseline':(v>0?'+':'')+number(v);}
+function renderContextReadout(r){
+  clear('context-readout');if(!r)return;
+  const c=r.context;
+  $('context-readout').append(el('strong',`Context sent: ${number(c.input)} tokens`),el('span',`Change: ${contextChange(c.change)} · Cached: ${number(r.usage.cached_input_tokens)} · Output: ${number(r.usage.output_tokens)}`));
+  $('context-readout').append(el('span',c.limit_share==null?'Context limit not recorded':`${(c.limit_share*100).toFixed(1)}% of the recorded ${number(r.context_limit)} token limit`,'small muted'));
+}
+function renderContext(data){
+  clear('context-summary');clear('context-rows');clear('context-readout');
+  const c=data.context_summary;
+  $('context-summary').append(el('h3','Context adds up with every response'));
+  $('context-summary').append(el('p',c.count?`${compact(c.average)} average input tokens × ${number(c.count)} valid responses in this selection. Peak context sent: ${compact(c.peak)} tokens.`:'No valid per-response context counts in this selection.'));
+  const links=el('div',null,'largest-responses');links.append(el('span','Largest responses by total tokens: '));
+  for(const r of data.largest){const b=el('button',`${compact(r.usage.displayed_total)} · ${modelName(r.model)}`);b.addEventListener('click',guarded(async()=>{const found=await api('locate',{...scope(),id:r.id});state.responseOffset=found.offset;state.selected=found.id;await openSession();await setTab('response');}));links.append(b);}
+  if(data.largest.length)$('context-summary').append(links);
+  for(const [i,r] of data.responses.entries()){
+    const tr=el('tr');tr.dataset.id=r.id;const td=el('td');const b=el('button','#'+(data.offset+i+1));b.addEventListener('click',guarded(async()=>{await setTab('response');await selectResponse(r.id);}));td.append(b);tr.append(td);
+    for(const text of [number(r.context.input),contextChange(r.context.change),number(r.usage.cached_input_tokens),number(r.usage.output_tokens),r.context.limit_share==null?'Unavailable':(r.context.limit_share*100).toFixed(1)+'%'])tr.append(el('td',text));
+    $('context-rows').append(tr);
+  }
 }
 function addCount(dl,label,value,total=false){dl.append(el('dt',label,total?'total-label':''),el('dd',number(value),total?'total-value':''));}
 async function selectResponse(id) {
   state.selected=Number(id);
   state.evidenceOffset=0;
   $('response').value=id;
+  renderContextReadout(state.responses.find(r=>r.id===Number(id)));
+  document.querySelectorAll('#context-rows tr').forEach(n=>n.classList.toggle('selected-row',n.dataset.id===String(id)));
   document.querySelectorAll('.bar').forEach(n=>n.classList.toggle('selected',n.dataset.id===String(id)));
   const data=await api('detail',{id});
   if(state.selected!==Number(id))return;
@@ -131,7 +166,7 @@ async function selectResponse(id) {
   link.href=r.estimate.source;link.target='_blank';link.rel='noreferrer noopener';
   assumptions.append(link);estimate.append(assumptions);$('detail').append(estimate);
 
-  $('detail').append(el('p','Context: '+number(u.input_tokens)+(r.context_limit?' / '+number(r.context_limit):'')+' tokens','context-label'));
+  $('detail').append(el('p','Input cache split · '+number(u.input_tokens)+' input tokens','context-label'));
   const meter=el('div',null,'context-meter');
   if(u.uncached_input!=null&&u.cached_input_tokens!=null){
     const uncached=el('div',null,'uncached'),cached=el('div',null,'cached');
@@ -146,6 +181,7 @@ async function selectResponse(id) {
   provenance.append(el('p',r.context_limit?'Context limit is recorded; the meter shows the cached and uncached share of input.':'Context limit unavailable; the meter shows the cached and uncached share of input.','small muted'));
   for(const p of data.provenance)provenance.append(el('p','Source '+p.source+' · byte '+p.offset+' · '+p.sid+(p.inherited?' · inherited / owner '+p.owner:''),'small muted'));
   $('detail').append(provenance);
+  if(data.message){const b=el('button','Read conversation near this response');b.addEventListener('click',guarded(()=>readCitation(data.message)));$('detail').append(b);}
   renderEvidence(data,false);
 }
 function activityNode(a) {

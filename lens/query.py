@@ -56,7 +56,7 @@ class Report:
             result['context_conflict'] = True
         result['estimate'] = estimate(result['usage'], result['model'], result['speed'], result['timestamp'], result['provider'])
         if result.get('context_conflict'):
-            result['estimate']['total'] = result['estimate']['parts'] = None
+            result['estimate']['total'] = result['estimate']['parts'] = result['estimate']['components'] = None
             result['estimate']['reason'] = 'Conflicting model/speed appearances'
         result.pop('signature', None)
         return result
@@ -67,6 +67,7 @@ class Report:
                       records=0, invalid=0, legacy=0, priced=0, unpriced=0, inherited=0)
         cache_known = reasoning_known = True
         credits = Decimal(0)
+        components = {key: Decimal(0) for key in ('uncached_input', 'cached_input', 'output')}
         for row in self.db.execute(sql, values):
             r = self.response(row); u = r['usage']
             totals['records'] += 1
@@ -89,7 +90,10 @@ class Report:
                 totals['unpriced'] += 1
             else:
                 totals['priced'] += 1; credits += Decimal(r['estimate']['total'])
+                for key, value in r['estimate']['components'].items():
+                    components[key] += Decimal(value)
         totals['credits'] = str(credits) if totals['priced'] else None
+        totals['credit_components'] = {key: str(value) for key, value in components.items()} if totals['priced'] else None
         totals['cache_share'] = totals['cached']/totals['input'] if cache_known and totals['input'] else None
         if not cache_known:
             totals['cached'] = None
@@ -138,12 +142,33 @@ class Report:
     def session(self, args):
         sql, values = self.scoped(args)
         offset = page_offset(args)
-        rows = [self.response(r) for r in self.db.execute(sql+" AND a.kind='native' ORDER BY timestamp,id LIMIT 100 OFFSET ?", values+[offset])]
+        # Window before pagination: the first row on page two still has a baseline.
+        # Compare matching responses in the same source, never across descendants.
+        ranked = """WITH native AS ("""+sql+""" AND a.kind='native'), ranked AS (
+            SELECT *,LAG(usage) OVER w previous_usage,LAG(conflict) OVER w previous_conflict
+            FROM native WINDOW w AS (PARTITION BY source ORDER BY timestamp,id))
+            SELECT * FROM ranked ORDER BY timestamp,id LIMIT 100 OFFSET ?"""
+        rows = []
+        for row in self.db.execute(ranked, values+[offset]):
+            r = self.response(row)
+            previous = json.loads(r.pop('previous_usage') or 'null')
+            previous_conflict = r.pop('previous_conflict')
+            u = r['usage']
+            valid = not u['errors']
+            before = previous['input_tokens'] if previous and not previous['errors'] and not previous_conflict else None
+            r['context'] = {'input': u['input_tokens'] if valid else None,
+                            'previous_input': before,
+                            'change': u['input_tokens']-before if valid and before is not None else None,
+                            'limit_share': u['input_tokens']/r['context_limit'] if valid and r['context_limit'] else None}
+            rows.append(r)
+        valid_sql = "SELECT * FROM ("+sql+") WHERE kind='native' AND conflict=0 AND json_array_length(usage,'$.errors')=0"
+        context_summary = dict(self.db.execute("SELECT COUNT(*) count,MAX(json_extract(usage,'$.input_tokens')) peak,AVG(json_extract(usage,'$.input_tokens')) average FROM ("+valid_sql+")", values).fetchone())
+        largest = [self.response(r) for r in self.db.execute(valid_sql+" ORDER BY json_extract(usage,'$.displayed_total') DESC,id LIMIT 3", values)]
         scope = dict(args); scope.pop('turn', None)
         where, params = self.filters(scope)
         turns = [dict(r) for r in self.db.execute(f'''SELECT turn,MIN(timestamp) first,COUNT(DISTINCT key) records
             FROM appearances a WHERE {where} GROUP BY turn ORDER BY first''', params)]
-        return {'responses': rows, 'totals': self.totals(args), 'turns': turns, 'offset': offset,
+        return {'responses': rows, 'context_summary': context_summary, 'largest': largest, 'totals': self.totals(args), 'turns': turns, 'offset': offset,
                 'count': self.db.execute('SELECT COUNT(*) FROM ('+sql+") WHERE kind='native'", values).fetchone()[0]}
 
     def locate(self, args):
@@ -166,7 +191,9 @@ class Report:
         provenance = [dict(x) for x in self.db.execute('''SELECT a.source,a.offset,a.turn,a.owner,s.sid,
             a.owner!=s.sid AS inherited,a.kind FROM appearances a JOIN sessions s ON s.source=a.source
             WHERE a.key=? LIMIT 100''', (r['key'],))]
-        return {'response': r, 'activities': activities, 'provenance': provenance, 'offset': offset,
+        message = self.db.execute('SELECT id FROM messages WHERE source=? AND offset<=? ORDER BY offset DESC LIMIT 1', (r['source'], r['offset'])).fetchone()
+        return {'response': r, 'message': 'message:'+str(message['id']) if message else None,
+                'activities': activities, 'provenance': provenance, 'offset': offset,
                 'count': self.db.execute('SELECT COUNT(*) FROM activities WHERE source=? AND following=?', (r['source'], r['key'])).fetchone()[0]}
 
     def findings(self, args):

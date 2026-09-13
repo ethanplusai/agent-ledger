@@ -39,6 +39,14 @@ The briefing collects excerpts from three recent sessions and up to six saved no
 
 Usage review runs only when requested for a selected project. Start no longer performs an all-history findings scan on every visit.
 
+## Understand what used your tokens
+
+Open **Usage** to see how much was input versus generated output, and which component dominates the available credit estimate. Token volume and estimated credits are different measurements; neither reveals your remaining subscription allowance.
+
+The default **Context per response** chart shows the input sent with each recorded model response, split into cached and uncached input where known. Select a bar to see its change from the previous matching response, output, and percentage of the recorded context limit. Expand **Compare responses in this page** for exact counts, or jump straight to one of the largest responses. **Read conversation near this response** connects the numbers to what you were doing.
+
+Context is not cumulative usage: sending the same 50,000-token context ten times records 500,000 input tokens. Deltas compare matching responses within the same source, across page boundaries; filters can skip intervening responses. A decrease does not by itself establish compaction. Unknown and conflicting counts remain unavailable. Largest-response rankings exclude legacy amounts and invalid counts.
+
 ## Other useful starting points
 
 **“What should I change next time?”** Open Start and expand a pattern under **Worth a closer look**. Each finding explains the observation, what it might mean, and one next step. Inspect the evidence before acting. Copy a suggested prompt into your next agent session if it fits. Repetition can be deliberate; findings are not proof of waste or promised savings.

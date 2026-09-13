@@ -36,7 +36,7 @@ def estimate(usage, model, speed=None, timestamp='', provider='openai'):
     candidates = [s for s in RATES['snapshots'] if s['date'] <= timestamp[:10]]
     snapshot = candidates[-1] if candidates else RATES['snapshots'][-1]
     rate = snapshot['models'].get(model)
-    result = {'total': None, 'parts': None, 'date': snapshot['date'], 'source': snapshot['source'],
+    result = {'total': None, 'parts': None, 'components': None, 'date': snapshot['date'], 'source': snapshot['source'],
               'basis': RATES['billing_basis'], 'assumption': 'Standard-rate estimate; speed unavailable',
               'historical': bool(candidates), 'reason': None}
     if speed in ('standard', 'default', 'normal'):
@@ -63,6 +63,7 @@ def estimate(usage, model, speed=None, timestamp='', provider='openai'):
     parts = [part(usage['uncached_input'], 'input'), part(usage['cached_input_tokens'], 'cached')]
     output = part(usage['output_tokens'], 'output')
     result['total'] = str(sum(parts) + output)
+    result['components'] = dict(zip(('uncached_input', 'cached_input', 'output'), map(str, parts+[output])))
     if usage['reasoning_output_tokens'] is not None:
         result['parts'] = [str(x) for x in parts + [part(usage['reasoning_output_tokens'], 'output'), part(usage['other_output'], 'output')]]
     return result

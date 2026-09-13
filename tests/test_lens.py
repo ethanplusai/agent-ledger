@@ -116,6 +116,61 @@ class StoreFixture:
 
 
 class StoreCase(StoreFixture, unittest.TestCase):
+    def test_credit_contributors_include_unsplit_output_and_exclude_unpriced(self):
+        self.write([meta(),context(),native('split'),native('unsplit',usage=dict(U,reasoning_output_tokens=None)),context(model='unpriced-example'),native('unpriced')]);self.ingest()
+        t=self.total()
+        self.assertEqual(t['unpriced'],1)
+        self.assertEqual(sum(map(Decimal,t['credit_components'].values())),Decimal(t['credits']))
+        self.assertEqual(Decimal(t['credit_components']['output']),Decimal('2.5'))
+
+    def test_filtered_context_baseline_and_conversation_citation(self):
+        self.write([meta(),context(),record('response_item',dict(type='message',role='user',content=[dict(type='input_text',text='Investigate the synthetic example')])),native('first'),context(model='gpt-5.6-sol'),native('skip'),context(),native('last',usage=dict(U,input_tokens=12000,total_tokens=13000))]);self.ingest()
+        report=Report(self.db);data=report.session({'model':'gpt-6-astra'})
+        self.assertEqual(len(data['responses']),2)
+        self.assertEqual(data['responses'][1]['context']['change'],2000)
+        detail=report.detail({'id':data['responses'][0]['id']})
+        self.assertTrue(detail['message'].startswith('message:'))
+
+    def test_context_crosses_page_boundary_and_preserves_decreases(self):
+        def usage(i):
+            return dict(U,input_tokens=i,cached_input_tokens=0,total_tokens=i+1000)
+        rows=[meta(),context(context_window=20000)]
+        rows += [native('ctx-'+str(i),usage=usage(10000+i)) for i in range(101)]
+        rows += [native('ctx-reset',usage=usage(3000))]
+        self.write(rows);self.ingest()
+        data=Report(self.db).session({'session':'test-session','offset':'100'})
+        self.assertEqual(data['responses'][0]['context']['previous_input'],10099)
+        self.assertEqual(data['responses'][0]['context']['change'],1)
+        self.assertEqual(data['responses'][0]['context']['limit_share'],10100/20000)
+        self.assertEqual(data['responses'][1]['context']['change'],-7100)
+        self.assertEqual(data['context_summary']['peak'],10100)
+        self.assertEqual(data['context_summary']['count'],102)
+        self.assertEqual(data['largest'][0]['usage']['input_tokens'],10100)
+
+    def test_context_never_compares_different_sources(self):
+        self.write([meta('parent'),context(),native('parent-response')])
+        self.write([meta('child',forked_from_id='parent'),context(),native('child-response')],name='b.jsonl')
+        self.ingest()
+        data=Report(self.db).session({})
+        self.assertEqual(len(data['responses']),2)
+        self.assertTrue(all(r['context']['change'] is None for r in data['responses']))
+
+    def test_invalid_context_does_not_create_growth_or_rank(self):
+        self.write([meta(),context(),native('good'),native('bad',usage=dict(U,total_tokens=999999)),native('after')]);self.ingest()
+        data=Report(self.db).session({})
+        self.assertEqual(data['context_summary']['count'],2)
+        self.assertIsNone(data['responses'][1]['context']['input'])
+        self.assertIsNone(data['responses'][2]['context']['change'])
+        self.assertEqual(len(data['largest']),2)
+
+    def test_conflicting_context_excluded_and_missing_cache_still_has_input(self):
+        self.write([meta(),context(),native('conflict'),native('conflict',usage=dict(U,input_tokens=12000,total_tokens=13000)),native('unknown-cache',usage=dict(U,cached_input_tokens=None))]);self.ingest()
+        data=Report(self.db).session({})
+        self.assertEqual(data['context_summary']['count'],1)
+        self.assertIsNone(data['responses'][0]['context']['input'])
+        self.assertEqual(data['responses'][1]['context']['input'],10000)
+        self.assertIsNone(data['responses'][1]['context']['change'])
+
     def test_native_and_mirror(self):
         self.write([meta(),context(),native(),legacy(),native()]);self.ingest()
         self.assertEqual(self.total()['total'],11000);self.assertEqual(self.total()['responses'],1)

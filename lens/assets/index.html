@@ -80,6 +80,7 @@
       <label class="model-filter"><span class="sr-only">Model</span><select id="model"><option value="">All models</option></select></label>
       <button id="astra" class="quiet-button" aria-pressed="false">Astra only</button>
     </div>
+    <div id="usage-explanation" class="usage-explanation" aria-live="polite"></div>
     <div id="metrics" class="metrics" aria-label="Filtered usage totals"></div>
     <details class="accounting-note"><summary>About these totals</summary><p id="scope-note"></p></details>
   </section>
@@ -95,14 +96,17 @@
       <div class="chart-controls">
         <label class="turn-control"><span class="sr-only">Task or turn</span><select id="turn"><option value="">Whole session</option></select></label>
         <label class="check"><input id="descendants" type="checkbox"> Include descendants</label>
-        <label class="measure-control"><span class="sr-only">Chart measure</span><select id="measure"><option value="tokens">Recorded tokens</option><option value="credits">Estimated credits</option></select></label>
+        <label class="measure-control"><span class="sr-only">Chart measure</span><select id="measure"><option value="context">Context per response</option><option value="tokens">Recorded tokens</option><option value="credits">Estimated credits</option></select></label>
       </div>
       <div class="chart-meta"><p id="session-totals"></p><span id="session-coverage"></span></div>
+      <div id="context-summary" class="context-summary"></div>
       <div class="chart-wrap"><div id="chart" role="group" aria-label="Usage by model response"></div></div>
       <div class="chart-footer">
         <div class="legend"><span><i class="uncached"></i>Uncached input</span><span><i class="cached"></i>Cached input</span><span><i class="reasoning"></i>Reasoning</span><span><i class="other"></i>Other output</span></div>
         <p id="chart-note"></p>
       </div>
+      <div id="context-readout" class="context-readout" aria-live="polite"></div>
+      <details class="request-table"><summary>Compare responses in this page</summary><div class="table-scroll"><table><thead><tr><th>Response</th><th>Context sent</th><th>Change¹</th><th>Cached</th><th>Output</th><th>Limit used</th></tr></thead><tbody id="context-rows"></tbody></table></div><p class="small muted">¹ Compared with the previous matching response in the same source, including the previous page. Filters may skip responses. A decrease alone does not prove compaction.</p></details>
       <div class="response-navigation">
         <label for="response">Response</label><select id="response"><option>Select a session first</option></select>
         <div class="pager"><button id="responses-prev" aria-label="Previous response page">←</button><span id="response-page"></span><button id="responses-next" aria-label="Next response page">→</button></div>
