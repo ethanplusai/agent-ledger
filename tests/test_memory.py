@@ -64,7 +64,7 @@ class MemoryTests(unittest.TestCase):
         self.load([self.row()]);self.db.commit()
         requests=[dict(jsonrpc='2.0',id=0,method='tools/list'),dict(jsonrpc='2.0',id=1,method='initialize',params={'protocolVersion':'2025-11-25'}),dict(jsonrpc='2.0',method='notifications/initialized'),dict(jsonrpc='2.0',id=2,method='tools/list'),dict(jsonrpc='2.0',id=3,method='tools/call',params={'name':'search_history','arguments':{'q':'SQLite'}}),dict(jsonrpc='2.0',id=4,method='tools/call',params={'name':'write_file','arguments':{}})]
         out=io.StringIO();serve(self.dbpath,io.BytesIO(('\n'.join(json.dumps(x) for x in requests)+'\n').encode()),out)
-        replies=[json.loads(l) for l in out.getvalue().splitlines()];self.assertEqual(len(replies),5);self.assertIn('error',replies[0]);self.assertEqual(len(replies[2]['result']['tools']),5);self.assertIn('SQLite',replies[3]['result']['content'][0]['text']);self.assertTrue(replies[4]['result']['isError'])
+        replies=[json.loads(l) for l in out.getvalue().splitlines()];self.assertEqual(len(replies),5);self.assertIn('error',replies[0]);self.assertEqual(len(replies[2]['result']['tools']),6);self.assertIn('SQLite',replies[3]['result']['content'][0]['text']);self.assertTrue(replies[4]['result']['isError'])
         call(self.db,'recent_sessions',{})
         import sqlite3
         with self.assertRaises(sqlite3.OperationalError):self.db.execute("INSERT INTO notes(title,text,created,updated) VALUES('a','b','x','x')")
@@ -148,3 +148,29 @@ class MemoryHTTPTests(unittest.TestCase):
         self.assertEqual(self.request('notes/save',{'title':'Test','text':'a'*32001})[0],400)
         self.assertEqual(self.request('connection',token=False)[0],403)
         self.assertIn('--mcp',self.request('connection')[1]['mcpServers']['agent-ledger']['args'])
+
+class BriefingTests(unittest.TestCase):
+    setUp=MemoryTests.setUp
+    tearDown=MemoryTests.tearDown
+    row=MemoryTests.row
+    load=MemoryTests.load
+    def test_briefing_has_project_sources_and_no_cross_project_text(self):
+        self.load([self.row(text='Latest Atlas decision')]);memory=Memory(self.db)
+        memory.save_note({'title':'Keep','text':'Project convention','project':'/demo/project'})
+        memory.save_note({'title':'Global','text':'Global convention'})
+        memory.save_note({'title':'Other','text':'Unrelated private context','project':'/other'})
+        brief=memory.briefing({'project':'/demo/project'})
+        self.assertEqual(len(brief['updates']),1)
+        self.assertIn('Latest Atlas decision',brief['draft']);self.assertIn('Project convention',brief['draft'])
+        self.assertNotIn('Unrelated private context',brief['draft'])
+        self.assertTrue(brief['updates'][0]['citation'].startswith('message:'))
+        self.assertIn('historical',brief['draft'])
+    def test_briefing_requires_project_and_bounds_context(self):
+        self.load([self.row(text='x'*10000)])
+        brief=Memory(self.db).briefing({'project':'/demo/project'})
+        self.assertEqual(len(brief['updates'][0]['text']),2400);self.assertTrue(brief['updates'][0]['truncated'])
+        with self.assertRaises(ValueError):Memory(self.db).briefing({})
+    def test_home_defers_expensive_usage_queries(self):
+        from unittest.mock import patch
+        with patch.object(Memory,'insights',side_effect=AssertionError('Unexpected usage scan')):
+            self.assertEqual(Memory(self.db).home({})['insights'],[])

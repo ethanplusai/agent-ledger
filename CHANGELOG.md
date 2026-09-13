@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 — project recovery and handoffs
+
+- Start with a project briefing: recent recorded updates, saved decisions, and direct source links.
+- Prepare an editable handoff with your next objective; copy it into any agent or save it as project context.
+- Keep unsaved drafts separate while switching projects; repeat saves update the handoff within the editing session.
+- Add a read-only `project_briefing` MCP tool.
+- Defer usage analysis until a project review is requested.
 
 - Avoid revisiting already-linked tool results when associating new responses; preserve existing caches and accounting.
 - Replace per-file terminal spam with named agent stages, elapsed time, current-file percentages, and an explicit ready message.

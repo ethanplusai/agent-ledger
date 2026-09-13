@@ -18,7 +18,7 @@ Agent Ledger is one Python standard-library application with a private SQLite ca
 
 `lens/server.py` allows four static assets and explicit API routes. All APIs require a per-launch capability header and validate Host, Origin, and Fetch Metadata. Note mutations additionally require bounded JSON bodies. No API accepts arbitrary filesystem reads or shell commands. SQL is parameterized and transcript text enters the DOM via text nodes.
 
-`lens/mcp.py` exposes five read-only tools; SQLite query-only mode reinforces that boundary. It implements initialization/capability negotiation, tool discovery/calls, ping, protocol errors, bounded frames, and EOF shutdown for revisions through 2025-11-25. No sampling, agent configuration editing, hook installation, model invocation, or remote transport. Retrieved history remains untrusted evidence. The consuming agent controls whether context goes to a cloud provider.
+`lens/mcp.py` exposes six read-only tools; SQLite query-only mode reinforces that boundary. It implements initialization/capability negotiation, tool discovery/calls, ping, protocol errors, bounded frames, and EOF shutdown for revisions through 2025-11-25. No sampling, agent configuration editing, hook installation, model invocation, or remote transport. Retrieved history remains untrusted evidence. The consuming agent controls whether context goes to a cloud provider.
 
 ## Limits
 

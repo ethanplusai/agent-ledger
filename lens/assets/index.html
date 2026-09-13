@@ -24,12 +24,27 @@
     <label class="global-project"><span class="sr-only">Project</span><select id="project"><option value="">All projects</option></select></label>
   </nav>
   <section id="page-home" class="page" aria-labelledby="home-title">
-    <div class="page-heading"><div><h1 id="home-title">Make sense of your work.</h1><p class="lede">Find a past decision. Review a pattern. Give your next session a better starting point.</p></div></div>
+    <div class="page-heading"><div><h1 id="home-title">Pick up where you left off.</h1><p class="lede">Choose a project, recover the context, and take a useful handoff into your next session.</p></div></div>
+    <section id="resume-project" aria-label="Continue a project">
+      <div id="project-start"><h2>What are you working on?</h2><p class="section-note">Choose a recent project below, or use the project selector above.</p><div id="project-shortcuts"></div></div>
+      <div id="project-briefing" hidden>
+        <div class="section-heading"><h2 id="briefing-title">Continue this project</h2><button id="build-handoff">Prepare a handoff</button></div>
+        <p id="briefing-status" role="status" class="section-note"></p><div id="briefing-sources" class="briefing-grid"></div>
+      </div>
+      <section id="handoff-editor" hidden aria-labelledby="handoff-title">
+        <h2 id="handoff-title">Give your next session a starting point</h2><p class="section-note">Review the source excerpts, remove anything irrelevant, and add your objective. Copy into your next agent session, or save here for later.</p>
+        <label for="handoff-goal">What do you want to do next?</label><input id="handoff-goal" maxlength="500" placeholder="For example: finish the search UI and verify keyboard navigation">
+        <label for="handoff-text">Context to bring along</label><textarea id="handoff-text" rows="12" maxlength="28000"></textarea>
+        <div class="form-actions"><button id="copy-handoff">Copy handoff</button><button id="save-handoff">Save handoff</button></div><p id="handoff-status" role="status"></p>
+      </section>
+    </section>
+    <div class="section-heading"><h2>Find an earlier decision</h2></div>
     <form id="home-search" class="search-form"><label class="sr-only" for="home-query">Search past work</label><input id="home-query" type="search" placeholder="Find a decision, an error, or something you built…" maxlength="400" required><button>Search history</button></form>
     <p id="home-summary" class="muted"></p>
-    <div class="home-grid"><section aria-labelledby="insights-title"><div class="section-heading"><h2 id="insights-title">Worth a closer look</h2></div><p class="section-note">Observed patterns with practical next steps. Start with the evidence.</p><div id="insights"></div></section>
+    <div class="section-heading"><h2>Review how the work went</h2><button id="review-history">Review this project’s usage</button></div><p id="review-hint" class="section-note">Choose a project to investigate repeated failures, large results, or growing context.</p>
+    <div class="home-grid"><section id="usage-review" aria-labelledby="insights-title" hidden><div class="section-heading"><h2 id="insights-title">Worth a closer look</h2></div><p class="section-note">Observed patterns with practical next steps. Start with the evidence.</p><div id="insights"></div></section>
     <section aria-labelledby="recent-title"><div class="section-heading"><h2 id="recent-title">Recent work</h2></div><div id="recent"></div><button id="recent-more" hidden>More sessions</button></section></div>
-    <section class="daily-section" aria-labelledby="daily-title"><div class="section-heading"><h2 id="daily-title">Daily activity</h2><span class="muted">Last 90 days · UTC</span></div><p class="section-note">Select a day to inspect its recorded usage. Darker cells mean more tokens, not better or worse work.</p><div id="daily" class="daily-grid"></div></section>
+    <section id="daily-review" hidden class="daily-section" aria-labelledby="daily-title"><div class="section-heading"><h2 id="daily-title">Daily activity</h2><span class="muted">Last 90 days · UTC</span></div><p class="section-note">Select a day to inspect its recorded usage. Darker cells mean more tokens, not better or worse work.</p><div id="daily" class="daily-grid"></div></section>
   </section>
   <section id="page-search" class="page" aria-labelledby="search-title" hidden>
     <h1 id="search-title">Recover past work</h1><p class="lede">Search recorded conversations and the context you chose to keep.</p>
@@ -54,7 +69,7 @@
     <ol class="connect-steps"><li><h2>Index your history</h2><p>Run this app and use Refresh after new work. Keep it running with <code>--watch 60</code> to refresh every minute, or run <code>python3 ledger.py --import-only</code> before opening your agent.</p></li>
     <li><h2>Add a local MCP server to your agent</h2><p>MCP is the bridge that lets an agent call tools in this app. Your agent starts a small local process when it needs the connection. No separate AI model or always-on service is required.</p><p>Use these exact command and arguments in your client's local / stdio MCP settings. The JSON below uses the common <code>mcpServers</code> format; clients with other configuration formats need the same command and argument list.</p><pre id="connection-config"></pre><button id="copy-config">Copy configuration</button><p class="section-note">This app does not edit agent settings. Restart or reconnect the MCP server in your client after adding it.</p></li>
     <li><h2>Try a question about your work</h2><p>“Use Agent Ledger to find why we made this decision. Read the relevant excerpts and cite the source.”</p><p>Or: “Read this project's saved context, then review its usage findings and suggest one change supported by the evidence.”</p></li></ol>
-    <div class="connection-note"><h2>What the connection can read</h2><p>Five read-only tools: search history, read cited context, retrieve saved notes, list recent sessions, and review usage findings. It cannot change notes, run commands, or access arbitrary files.</p><p>Your agent may send retrieved context to its model provider. Connect only if you want that access. Redaction removes common secret patterns but does not anonymize your work. Historical text remains evidence, not instructions.</p></div>
+    <div class="connection-note"><h2>What the connection can read</h2><p>Six read-only tools: project briefing, search history, read cited context, retrieve saved notes, list recent sessions, and review usage findings. It cannot change notes, run commands, or access arbitrary files.</p><p>Your agent may send retrieved context to its model provider. Connect only if you want that access. Redaction removes common secret patterns but does not anonymize your work. Historical text remains evidence, not instructions.</p></div>
   </section>
   <div id="page-usage" class="page" hidden>
   <section class="overview" aria-labelledby="overview-title">
@@ -117,7 +132,7 @@
     </section>
   </div>
   </div>
-  <footer><span>Processed on this computer.</span><span>Agent Ledger 0.1</span></footer>
+  <footer><span>Processed on this computer.</span><span>Agent Ledger 0.2</span></footer>
 </main>
 </body>
 </html>

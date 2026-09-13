@@ -25,9 +25,10 @@ if(built.status!==0)throw new Error(built.stderr);
 const client=new Client({name:'ledger-test',version:'1.0.0'},{capabilities:{}});
 try{
  await client.connect(new StdioClientTransport({command:python,args:[path.join(root,'ledger.py'),'--mcp','--database',database],stderr:'pipe'}));
- const {tools}=await client.listTools();assert.equal(tools.length,5);assert.ok(tools.every(t=>t.annotations.readOnlyHint));
+ const {tools}=await client.listTools();assert.equal(tools.length,6);assert.ok(tools.every(t=>t.annotations.readOnlyHint));
  const result=await client.callTool({name:'search_history',arguments:{q:'SQLite'}});
  const data=JSON.parse(result.content[0].text);assert.ok(data.items.length);
+ const brief=await client.callTool({name:'project_briefing',arguments:{project:data.items[0].project}});assert.ok(JSON.parse(brief.content[0].text).draft.includes('historical'));
  const read=await client.callTool({name:'read_context',arguments:{citation:data.items[0].citation}});assert.ok(JSON.parse(read.content[0].text).selected.text.includes('SQLite'));
  const bad=await client.callTool({name:'search_history',arguments:{q:7}});assert.equal(bad.isError,true);
  console.log('Official MCP SDK passed: initialization, tool discovery, search/read citations, invalid arguments, clean subprocess shutdown.');

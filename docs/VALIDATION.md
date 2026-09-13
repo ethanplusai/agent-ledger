@@ -1,12 +1,13 @@
-# Release validation · 0.1.0
+# Release validation · 0.2.0
 
 Validated locally on macOS, September 12, 2026. Automated fixtures and screenshots are synthetic. A bounded compatibility check against a real Claude session used a temporary private cache that was removed afterward; no transcript material is included in the repository.
 
 | Check | Result |
 | --- | --- |
-| Python 3.14 regression suite | 77 tests passed |
-| Python 3.12 regression suite | 77 tests passed |
+| Python 3.14 regression suite | 82 tests passed |
+| Python 3.12 regression suite | 82 tests passed |
 | Usage browser suite | Passed selection, keyboard tabs/chart, filters, refresh, evidence, inert text, empty states, themes, and 360/736/1024/1440 widths |
+| Project briefing browser suite | Passed source navigation, copied handoff contents, editing/saving without duplicates, per-project draft isolation, and mobile layouts |
 | Combined workspace browser suite | Passed finding-to-evidence navigation, search/read/save/edit/delete, day selection, MCP configuration, empty/error recovery, narrow layouts, and no external requests |
 | Official TypeScript MCP SDK interoperability | Passed initialization, tool discovery, search/read citations, invalid arguments, and subprocess shutdown |
 | Claude import | Synthetic stream merging, copied-source deduplication, conflict exclusion, inclusive cache counts, appends, incomplete tails, replacement, and malformed/oversized records checked |
@@ -31,6 +32,7 @@ Browser scripts require a development-only Playwright installation and Chromium.
 ```sh
 node scripts/browser_smoke.cjs --screenshots
 node scripts/workspace_smoke.cjs --screenshots
+node scripts/briefing_smoke.cjs --screenshots
 ```
 
 For MCP integration, set `MCP_SDK_ROOT` to an installed `@modelcontextprotocol/sdk` package directory and run `node scripts/mcp_smoke.mjs`. The official SDK is only a test dependency; the app runs with Python's standard library.

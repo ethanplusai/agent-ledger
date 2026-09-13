@@ -6,7 +6,7 @@ A local workspace for Claude Code and Codex history. Start with understandable u
 
 No website, hosted service, account, model subscription, or build step. Clone the public source and run it on your computer. MIT licensed; Python 3.10+ and its standard library, including SQLite FTS5.
 
-![Synthetic Agent Ledger workspace](docs/screenshots/demo-home-1440.png)
+![Synthetic project briefing and handoff](docs/screenshots/demo-briefing-1440.png)
 
 ## Run locally
 
@@ -28,7 +28,18 @@ python3 ledger.py --demo
 
 Demo mode uses generated Claude and Codex examples in a temporary directory, removed on normal exit. Saving notes in demo mode is temporary too.
 
-## Three useful starting points
+## Continue a project in one flow
+
+1. On Start, choose a recent project or use the project selector.
+2. Review **Where the last sessions ended** and **Decisions and context you kept**. Open a source to check the surrounding conversation.
+3. Click **Prepare a handoff**, enter what you want to do next, and edit the included context.
+4. **Copy handoff** into your next Claude/Codex session, or **Save handoff** as project context. No MCP setup is required for copy/paste.
+
+The briefing collects excerpts from three recent sessions and up to six saved notes. It is not an AI-generated summary or a claim about the current working tree. Source references and clipping labels remain visible. Edits stay in memory while switching projects; save before reloading or closing the page. Saving again in the same editing session updates that handoff.
+
+Usage review runs only when requested for a selected project. Start no longer performs an all-history findings scan on every visit.
+
+## Other useful starting points
 
 **“What should I change next time?”** Open Start and expand a pattern under **Worth a closer look**. Each finding explains the observation, what it might mean, and one next step. Inspect the evidence before acting. Copy a suggested prompt into your next agent session if it fits. Repetition can be deliberate; findings are not proof of waste or promised savings.
 
@@ -48,10 +59,11 @@ python3 ledger.py --mcp-config
 
 Add it to your client's local / stdio MCP server settings. The generated JSON uses the common `mcpServers` wrapper; other clients may use a different configuration format with the same command and arguments. This app never edits your agent settings, installs hooks, or starts an AI model.
 
-Your client starts a small background subprocess and communicates through stdin/stdout. The browser app does not need to remain open. The subprocess exits when the client closes its input or terminates it. Five tools are available:
+Your client starts a small background subprocess and communicates through stdin/stdout. The browser app does not need to remain open. The subprocess exits when the client closes its input or terminates it. Six tools are available:
 
 | Tool | Purpose |
 | --- | --- |
+| `project_briefing` | Gather recent project updates and saved context into a source-backed handoff |
 | `search_history` | Find conversation excerpts and saved context |
 | `read_context` | Expand a citation with nearby messages |
 | `project_notes` | Retrieve project and global notes |
@@ -106,6 +118,7 @@ Optional browser checks require Playwright, only for development:
 ```sh
 node scripts/browser_smoke.cjs
 node scripts/workspace_smoke.cjs
+node scripts/briefing_smoke.cjs
 ```
 
 The optional `scripts/mcp_smoke.mjs` tests interoperability with the official TypeScript MCP SDK; set `MCP_SDK_ROOT` to that installed package directory. None of these development tools are required to run the app.

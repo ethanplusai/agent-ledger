@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS messages (
  offset INTEGER, identity TEXT, role TEXT, timestamp TEXT, text TEXT, truncated INTEGER,
  UNIQUE(source,identity));
 CREATE INDEX IF NOT EXISTS message_source ON messages(source,offset);
+CREATE INDEX IF NOT EXISTS message_latest ON messages(source,role,timestamp DESC,offset DESC);
 CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(text, content='messages', content_rowid='id');
 CREATE TRIGGER IF NOT EXISTS messages_ai AFTER INSERT ON messages BEGIN
  INSERT INTO messages_fts(rowid,text) VALUES(new.id,new.text); END;

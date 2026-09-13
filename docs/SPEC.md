@@ -47,8 +47,14 @@ Live hooks and alerts; account billing reconciliation; API-dollar estimates; nea
 
 The release retains the accounting contract above and adds local Claude Code conversation/usage import, bounded conversation search, recent sessions, a 90-day UTC activity grid, explicitly saved project/global context, text/Markdown import, and an optional read-only MCP server. The first screen is Start, with evidence-backed explanations and practical next steps. The original detailed inspector is available under Usage.
 
-No standalone website, hosted service, built-in AI chat, automatic memory extraction, agent write tools, or configuration mutation is included. Both humans and optional connected agents can retrieve saved context. The five MCP tools share the browser's database and bounded read/query code. See README and ARCHITECTURE for current commands and behavior.
+No standalone website, hosted service, built-in AI chat, automatic memory extraction, agent write tools, or configuration mutation is included. Both humans and optional connected agents can retrieve saved context. The six MCP tools share the browser's database and bounded read/query code. See README and ARCHITECTURE for current commands and behavior.
 
 Claude native message IDs identify usage independently of transcript fragments. Inclusive input is ordinary input plus cache reads plus cache creation. Monotonic streaming snapshots update one response; inconsistent snapshots are marked incomplete/excluded rather than summed. Recorded historical branches are not excluded merely because they are no longer on a conversation's active path: they may still represent work performed. Native identity deduplication addresses copied work. Claude credit conversion remains unavailable.
 
 The combined cache uses a new default directory and filename, so prior Usage Lens caches are not silently reused without indexing conversation text. Saved notes are private durable data within that cache; deleting or selecting another cache affects their availability. Historical citations never become executable instructions.
+
+## 0.2.0 project recovery
+
+Start offers recent project shortcuts and a project briefing. The briefing collects the latest assistant excerpt from each of three recent sessions and up to six saved notes, with citations, clipping labels, and explicit historical-report status. Users supply the next objective and review an editable handoff before copying or saving. No model is invoked and no inferred task status is presented as fact. Per-project drafts are held only in page memory; explicit saves persist context.
+
+The read-only `project_briefing` MCP tool exposes the same bounded collection. Start defers usage analysis until an explicit project review request. Existing cache data remains compatible.
