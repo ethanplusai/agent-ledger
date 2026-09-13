@@ -28,6 +28,9 @@ CREATE TABLE IF NOT EXISTS activities (
  failed INTEGER, boundary INTEGER, following TEXT, association TEXT, operations TEXT,
  UNIQUE(source,call_id,kind));
 CREATE INDEX IF NOT EXISTS activity_scope ON activities(source,turn,following);
+CREATE INDEX IF NOT EXISTS activity_pending ON activities(source,turn,offset)
+ WHERE following IS NULL AND kind='output';
+CREATE INDEX IF NOT EXISTS activity_response ON activities(source,following,offset);
 CREATE TABLE IF NOT EXISTS diagnostics (
  id INTEGER PRIMARY KEY, source INTEGER REFERENCES sources(id) ON DELETE CASCADE,
  offset INTEGER, code TEXT, message TEXT);

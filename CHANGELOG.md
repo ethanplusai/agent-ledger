@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Avoid revisiting already-linked tool results when associating new responses; preserve existing caches and accounting.
+- Replace per-file terminal spam with named agent stages, elapsed time, current-file percentages, and an explicit ready message.
+
 ## 0.1.0 — combined local release
 
 - Local Claude Code and Codex history in one workspace; no website or hosted service.

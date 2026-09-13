@@ -92,9 +92,11 @@ def run(args, demo_root=None):
             try:
                 from lens.claude import ClaudeImporter
                 from datetime import datetime, timezone
-                result = Importer(db, home, args.line_limit_mib*1024*1024, args.preview_chars, print).run()
+                def progress(message):
+                    print(message, flush=True)
+                result = Importer(db, home, args.line_limit_mib*1024*1024, args.preview_chars, progress).run()
                 if not args.no_claude:
-                    other = ClaudeImporter(db,claude,args.line_limit_mib*1024*1024,args.preview_chars,print).run()
+                    other = ClaudeImporter(db,claude,args.line_limit_mib*1024*1024,args.preview_chars,progress).run()
                     for key in ('records','discovered','changed'):result[key]+=other[key]
                     result['issues']+=other['issues']
                 db.execute("INSERT OR REPLACE INTO metadata VALUES('refreshed',?)",(datetime.now(timezone.utc).isoformat(),))
@@ -102,6 +104,10 @@ def run(args, demo_root=None):
                 return result
             finally:
                 db.close()
+    print('Preparing your local index. The first import can take several minutes for large histories.\n'
+          'Existing checkpoints are reused; there is no need to delete the cache.\n'
+          + ('Import-only mode: no browser will open.' if args.import_only else
+             'The workspace opens after indexing finishes. A previously opened demo tab is separate.'), flush=True)
     imported = refresh()
     print(f"Imported {imported['records']:,} records; {imported['discovered']:,} sources; {imported['changed']:,} changed.")
     for issue in imported['issues']:
@@ -109,7 +115,7 @@ def run(args, demo_root=None):
     if args.import_only:
         return
     with LocalServer(db_path, refresh, imported, bool(demo_root)) as server:
-        print('\nAgent Ledger — local workspace\n'+server.url+'\nKeep this process running. Ctrl+C stops the server.', flush=True)
+        print('\nREADY — Agent Ledger '+('synthetic demo' if demo_root else 'your real history')+'\n'+server.url+'\nOpen this full URL to view this workspace.\nKeep this process running. Ctrl+C stops the server.', flush=True)
         if not args.no_open:
             try:
                 if not webbrowser.open(server.url):

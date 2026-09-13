@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 import re
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from .accounting import FIELDS, normalize
@@ -85,6 +86,7 @@ def action_info(item):
 
 class Importer:
     folders = ('sessions', 'archived_sessions')
+    agent_label = 'Codex'
 
     def accepts(self, record):
         return isinstance(record, dict) and isinstance(record.get('payload'), dict)
@@ -94,12 +96,23 @@ class Importer:
         self.line_limit, self.preview_limit = line_limit, preview_limit
         self.progress = progress or (lambda message: None)
         self.report = {'discovered': 0, 'changed': 0, 'records': 0, 'issues': []}
+        self.started = self.last_progress = time.monotonic()
+
+    def progress_tick(self, detail='', force=False):
+        now = time.monotonic()
+        if force or now-self.last_progress >= 2:
+            elapsed = int(now-self.started)
+            self.progress(f"{self.agent_label}: {self.report['discovered']:,} files checked; "
+                          f"{self.report['changed']:,} changed; {elapsed//60}m {elapsed%60:02d}s"
+                          + (f" · {detail}" if detail else ''))
+            self.last_progress = now
 
     def diag(self, source, offset, code, message):
         self.db.execute('INSERT INTO diagnostics(source,offset,code,message) VALUES(?,?,?,?)',
                         (source, offset, code, message))
 
     def run(self):
+        self.progress(f'Scanning {self.agent_label} history. Unchanged files will be skipped.')
         seen = set()
         for folder in self.folders:
             base = self.home / folder
@@ -119,6 +132,7 @@ class Importer:
                     seen.add(str(path)); self.report['discovered'] += 1
                     try:
                         self.import_file(path)
+                        self.progress_tick()
                     except OSError:
                         self.db.rollback()
                         self.report['issues'].append('A rollout could not be read; prior cache retained.')
@@ -129,6 +143,7 @@ class Importer:
         missing = [r for r in missing if str(self.home) + os.sep in r['path']]
         if any(r['path'] not in seen for r in missing):
             self.report['issues'].append('Some cached source files were not discovered. Their last imported data is retained; rebuild in a new cache to exclude it.')
+        self.progress_tick('agent scan complete', force=True)
         return self.report
 
     def anchor(self, handle, offset):
@@ -151,7 +166,7 @@ class Importer:
         if row and row['identity'] == identity and row['size'] == stat.st_size and row['mtime'] == stat.st_mtime_ns and json.loads(row['state']).get('settled'):
             return
         self.report['changed'] += 1
-        self.progress(f"Importing rollout {self.report['discovered']} ({stat.st_size // 1024:,} KiB)")
+        self.progress_tick(f"reading a {stat.st_size/(1024*1024):,.1f} MiB file")
         with path.open('rb') as handle:
             changed = row and (row['identity'] != identity or stat.st_size < row['offset'] or
                                self.anchor(handle, row['offset']) != row['anchor'] or
@@ -200,8 +215,9 @@ class Importer:
                 offset = handle.tell(); count += 1
                 if count % 500 == 0:
                     self.checkpoint(sid, handle, offset, state, stat)
-                    if count % 10000 == 0:
-                        self.progress(f'  {offset // (1024*1024):,} MiB processed')
+                    self.progress_tick(f"current file {offset/(1024*1024):,.1f} / "
+                                       f"{stat.st_size/(1024*1024):,.1f} MiB "
+                                       f"({min(100, offset*100//max(1,stat.st_size))}%) · checkpoint saved")
             state['settled'] = True
             self.checkpoint(sid, handle, offset, state, stat)
 

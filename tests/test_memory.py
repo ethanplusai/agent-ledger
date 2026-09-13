@@ -89,6 +89,28 @@ class MemoryTests(unittest.TestCase):
         for i in range(101):m.save_note({'title':'Recent '+str(i),'text':'Other context'})
         self.assertEqual(len(m.search({'q':'Rare migration'})['notes']),1)
 
+    def test_linking_only_visits_pending_results(self):
+        self.load([self.row()])
+        source=self.db.execute('SELECT id FROM sources').fetchone()[0]
+        self.db.executemany("INSERT INTO activities(source,offset,call_id,kind,following) VALUES(?,?,?,'output','linked')",((source,i,'old-'+str(i)) for i in range(20000)))
+        self.db.execute("INSERT INTO activities(source,offset,call_id,kind) VALUES(?,20001,'pending','output')",(source,))
+        callbacks=[]
+        self.db.set_progress_handler(lambda: callbacks.append(1) or 0,100)
+        try:
+            self.db.execute("UPDATE activities SET following='next' WHERE source=? AND following IS NULL AND kind='output' AND offset<30000",(source,))
+        finally:self.db.set_progress_handler(None,0)
+        self.assertLess(len(callbacks),50,'Linking must not scan thousands of already-linked results')
+        self.assertEqual(self.db.execute("SELECT COUNT(*) FROM activities WHERE following='next'").fetchone()[0],1)
+    def test_progress_names_agent_and_current_file_percentage(self):
+        from unittest.mock import patch
+        self.path.write_text(''.join(json.dumps(self.row(ident=str(i),message=str(i)))+'\n' for i in range(501)))
+        messages=[]
+        with patch('lens.importer.time.monotonic',side_effect=iter(range(0,10000,3))):
+            ClaudeImporter(self.db,self.home,progress=messages.append).run()
+        self.assertTrue(any('Scanning Claude Code' in m for m in messages))
+        self.assertTrue(any('%' in m and 'checkpoint saved' in m for m in messages))
+        self.assertTrue(any('agent scan complete' in m for m in messages))
+
     def test_oversize_and_malformed_lines_record_coverage(self):
         self.path.write_text('broken\n'+json.dumps(self.row(text='x'*2000))+'\n'+json.dumps(self.row())+'\n');ClaudeImporter(self.db,self.home,line_limit=1000).run()
         codes={r[0] for r in self.db.execute('SELECT code FROM diagnostics')};self.assertIn('oversize',codes);self.assertIn('malformed',codes)

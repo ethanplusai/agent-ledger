@@ -18,6 +18,8 @@ python3 ledger.py
 
 Windows: `py -3 ledger.py`. If `python3` is unavailable, use your Python 3 command. Keep the terminal running; **Ctrl+C** stops the app. It opens a local browser tab. If that fails, paste the full URL printed in the terminal, including its temporary access fragment.
 
+The first run builds its own index; it does not reuse another memory app's cache. Large histories can take several minutes. Progress identifies Codex versus Claude Code and shows checkpoints through large files. Wait for **READY — your real history**, then use that run's printed URL. Later imports skip unchanged files. If interrupted, restart with the same options to reuse checkpoints; do not delete the cache.
+
 To explore without reading any real history:
 
 ```sh

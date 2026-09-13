@@ -9,6 +9,7 @@ import json
 
 class ClaudeImporter(Importer):
     folders = ('projects',)
+    agent_label = 'Claude Code'
 
     def accepts(self, record):
         return isinstance(record, dict) and isinstance(record.get('type'), str)
