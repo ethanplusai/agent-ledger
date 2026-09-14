@@ -168,8 +168,67 @@ class Report:
         where, params = self.filters(scope)
         turns = [dict(r) for r in self.db.execute(f'''SELECT turn,MIN(timestamp) first,COUNT(DISTINCT key) records
             FROM appearances a WHERE {where} GROUP BY turn ORDER BY first''', params)]
+        # Compaction markers come from the same sources as the paged responses, so the chart can
+        # show where recorded context was reset. A boundary is an observed record, not an inference.
+        sources = sorted({r['source'] for r in rows})
+        boundaries = []
+        if sources:
+            marks = ','.join('?'*len(sources))
+            boundaries = [dict(x) for x in self.db.execute(
+                f"""SELECT source,offset,timestamp,boundary FROM activities
+                    WHERE kind='boundary' AND source IN ({marks}) ORDER BY source,offset""", sources)]
         return {'responses': rows, 'context_summary': context_summary, 'largest': largest, 'totals': self.totals(args), 'turns': turns, 'offset': offset,
+                'boundaries': boundaries,
                 'count': self.db.execute('SELECT COUNT(*) FROM ('+sql+") WHERE kind='native'", values).fetchone()[0]}
+
+    def providers(self, args):
+        """Per-agent totals in the active filter. Claude usage has no Codex credit conversion."""
+        rows = []
+        # An active agent filter narrows the comparison to that agent; one side alone is not a comparison.
+        requested = args.get('agent') if args.get('agent') in ('claude', 'codex') else None
+        for agent, label in (('claude', 'Claude Code'), ('codex', 'Codex')):
+            if requested and agent != requested:
+                continue
+            scope = dict(args, agent=agent)
+            where, values = self.filters(scope)
+            sessions = self.db.execute(f'''SELECT COUNT(DISTINCT s.sid) FROM sessions s
+                JOIN appearances a ON a.source=s.source WHERE {where}''', values).fetchone()[0]
+            activity = self.db.execute(f'''SELECT COUNT(*) calls, SUM(COALESCE(t.failed,0)) failures
+                FROM activities t WHERE t.kind='output' AND EXISTS
+                (SELECT 1 FROM appearances a WHERE a.source=t.source AND a.key=t.following AND {where})''', values).fetchone()
+            rows.append({'agent': agent, 'label': label, 'sessions': sessions,
+                         'results': activity['calls'], 'failures': activity['failures'] or 0,
+                         'totals': self.totals(scope)})
+        return {'providers': rows, 'totals': self.totals(args),
+                'notice': 'Per-agent totals in the active filter. Token volume is comparable; credits are not, because '
+                          'Claude usage has no verified credit rate. Failure counts only include results whose source '
+                          'recorded an exit status or error flag, which differs between agents.'}
+
+    def tools(self, args):
+        """Observed tool results per tool, with failures and result sizes, for activity linked to a response in scope.
+
+        Only result records carry an observed size and a failure flag, and only result records are associated
+        with a response, so the count is observed results rather than every attempted call.
+        """
+        where, values = self.filters(args)
+        base = f'''FROM activities t WHERE t.kind='output' AND EXISTS
+            (SELECT 1 FROM appearances a WHERE a.source=t.source AND a.key=t.following AND {where})'''
+        items = [dict(r) for r in self.db.execute(f'''SELECT COALESCE(t.tool,'Unknown tool') tool,
+            COUNT(*) results, SUM(COALESCE(t.failed,0)) failures,
+            SUM(COALESCE(t.bytes,0)) bytes, MAX(COALESCE(t.bytes,0)) largest,
+            SUM(COALESCE(t.truncated,0)) truncated
+            {base} GROUP BY t.tool ORDER BY results DESC, bytes DESC LIMIT 50''', values)]
+        for row in items:
+            row['failure_rate'] = row['failures']/row['results'] if row['results'] else None
+        totals = {key: sum(row[key] for row in items) for key in ('results', 'failures', 'bytes', 'truncated')}
+        totals['failure_rate'] = totals['failures']/totals['results'] if totals['results'] else None
+        totals['tools'] = len(items)
+        totals['largest'] = max((row['largest'] for row in items), default=0)
+        return {'items': items, 'totals': totals,
+                'notice': 'Observed tool results linked to a response in the active filter. A result counts as failed '
+                          'only where an exit status or error flag was recorded; tools that report neither show no '
+                          'failures rather than none having occurred. Result bytes are not billed tokens, and a failed '
+                          'result can be a deliberate check.'}
 
     def locate(self, args):
         sql, values = self.scoped(args)

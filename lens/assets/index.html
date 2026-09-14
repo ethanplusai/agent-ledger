@@ -44,7 +44,7 @@
     <div class="section-heading"><h2>Review how the work went</h2><button id="review-history">Review this project’s usage</button></div><p id="review-hint" class="section-note">Choose a project to investigate repeated failures, large results, or growing context.</p>
     <div class="home-grid"><section id="usage-review" aria-labelledby="insights-title" hidden><div class="section-heading"><h2 id="insights-title">Worth a closer look</h2></div><p class="section-note">Observed patterns with practical next steps. Start with the evidence.</p><div id="insights"></div></section>
     <section aria-labelledby="recent-title"><div class="section-heading"><h2 id="recent-title">Recent work</h2></div><div id="recent"></div><button id="recent-more" hidden>More sessions</button></section></div>
-    <section id="daily-review" hidden class="daily-section" aria-labelledby="daily-title"><div class="section-heading"><h2 id="daily-title">Daily activity</h2><span class="muted">Last 90 days · UTC</span></div><p class="section-note">Select a day to inspect its recorded usage. Darker cells mean more tokens, not better or worse work.</p><div id="daily" class="daily-grid"></div></section>
+    <section id="daily-review" hidden class="daily-section" aria-labelledby="daily-title"><div class="section-heading"><h2 id="daily-title">Daily activity</h2><span class="muted">Last 12 months · UTC</span></div><p class="section-note">Select a day to inspect its recorded usage. Darker cells mean more tokens, not better or worse work.</p><div class="daily-scroll"><div id="daily" class="daily-grid"></div></div></section>
   </section>
   <section id="page-search" class="page" aria-labelledby="search-title" hidden>
     <h1 id="search-title">Recover past work</h1><p class="lede">Search recorded conversations and the context you chose to keep.</p>
@@ -78,11 +78,17 @@
       <div class="date-filter"><label for="from">From</label><input id="from" type="date" aria-label="From date, UTC"><label for="to">to</label><input id="to" type="date" aria-label="Through date, UTC"><button id="all-dates" class="quiet-button">All dates</button></div>
 
       <label class="model-filter"><span class="sr-only">Model</span><select id="model"><option value="">All models</option></select></label>
+      <label class="agent-filter"><span class="sr-only">Agent</span><select id="agent"><option value="">All agents</option><option value="claude">Claude Code</option><option value="codex">Codex</option></select></label>
       <button id="astra" class="quiet-button" aria-pressed="false">Astra only</button>
     </div>
     <div id="usage-explanation" class="usage-explanation" aria-live="polite"></div>
     <div id="metrics" class="metrics" aria-label="Filtered usage totals"></div>
     <details class="accounting-note"><summary>About these totals</summary><p id="scope-note"></p></details>
+    <section id="agent-compare" class="agent-compare" aria-labelledby="agent-compare-title">
+      <div class="section-heading"><h2 id="agent-compare-title">Claude Code and Codex, side by side</h2></div>
+      <div id="providers" class="provider-grid"></div>
+      <p id="provider-note" class="small muted"></p>
+    </section>
   </section>
 
   <div class="workspace">
@@ -114,6 +120,8 @@
 
       <div class="tabs" role="tablist" aria-label="Session views">
         <button id="tab-response" role="tab" aria-selected="true" aria-controls="view-response">Response</button>
+        <button id="tab-conversation" role="tab" aria-selected="false" aria-controls="view-conversation" tabindex="-1">Conversation</button>
+        <button id="tab-tools" role="tab" aria-selected="false" aria-controls="view-tools" tabindex="-1">Tools <span id="tool-count"></span></button>
         <button id="tab-findings" role="tab" aria-selected="false" aria-controls="view-findings" tabindex="-1">Findings <span id="finding-count"></span></button>
         <button id="tab-activity" role="tab" aria-selected="false" aria-controls="view-activity" tabindex="-1">Activity</button>
         <button id="tab-coverage" role="tab" aria-selected="false" aria-controls="view-coverage" tabindex="-1">Coverage <span id="diagnostic-count"></span></button>
@@ -124,6 +132,19 @@
           <section class="evidence-panel" aria-labelledby="evidence-title"><h3 id="evidence-title">Preceding tool results</h3><p class="section-note">Observed text size, not billed tokens.</p><div id="evidence"></div><button id="evidence-more" hidden>Load more</button></section>
         </div>
       </div>
+      <section id="view-conversation" class="tab-panel" role="tabpanel" tabindex="0" aria-labelledby="tab-conversation" hidden>
+        <div class="section-heading"><h3>What this conversation cost as it happened</h3></div>
+        <p id="conversation-summary" class="section-note"></p>
+        <div id="conversation"></div>
+        <div class="pager conversation-pager"><button id="conversation-prev">Earlier messages</button><span id="conversation-page"></span><button id="conversation-next">Later messages</button></div>
+        <p class="view-note" id="conversation-note"></p>
+      </section>
+      <section id="view-tools" class="tab-panel" role="tabpanel" tabindex="0" aria-labelledby="tab-tools" hidden>
+        <div class="section-heading"><h3>What the agent actually ran</h3><label class="check"><input id="tools-all" type="checkbox"> All filtered history</label></div>
+        <div id="tool-metrics" class="metrics"></div>
+        <div class="table-scroll"><table><thead><tr><th>Tool</th><th>Results</th><th>Failed</th><th>Failure rate</th><th>Observed bytes</th><th>Largest</th></tr></thead><tbody id="tool-rows"></tbody></table></div>
+        <p class="view-note" id="tools-note"></p>
+      </section>
       <section id="view-findings" class="tab-panel" role="tabpanel" tabindex="0" aria-labelledby="tab-findings" hidden>
         <p class="view-note">Measurements in the selected scope. Repetition can be useful; these findings do not establish waste.</p><div id="findings"></div>
       </section>

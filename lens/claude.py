@@ -45,6 +45,8 @@ class ClaudeImporter(Importer):
             if title:self.db.execute('UPDATE sessions SET title=? WHERE source=?',(scrub(title),sid))
         if typ=='system' and record.get('subtype')=='compact_boundary':
             state['boundary']+=1
+            # Record the reset the way the Codex adapter does, so compaction is visible in activity and charts.
+            self.activity(sid,offset,state,timestamp,{'type':'boundary','call_id':'boundary-'+str(offset)})
         message=record.get('message')
         if typ not in ('user','assistant') or not isinstance(message,dict):return
         identity=short(record.get('uuid')) or str(offset)

@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — conversation cost, tool breakdown and agent comparison
+
+- Replay a session as it happened: each recorded message shows the tokens attributed to it, a running session total, the tool calls that followed, and any failures or context resets.
+- Break a scope down by tool: observed results, failures, text returned, and the largest single result, for one session or all filtered history.
+- Compare Claude Code and Codex side by side, and narrow every usage view to one agent.
+- Mark recorded compactions on the context chart, so a drop in the next bar has a visible cause.
+- Show a failure badge on tool results that recorded a non-zero exit or an error flag.
+- Record a Claude compaction as an activity, matching the Codex adapter; it was previously counted but never stored.
+- Extend the daily grid from 90 days to the full 366 days already returned, and scroll it on narrow screens.
+- Give the synthetic demo an interleaved conversation and Claude tool activity so these views have something to show.
+
 ## 0.2.0 — project recovery and handoffs
 
 - Start with a project briefing: recent recorded updates, saved decisions, and direct source links.

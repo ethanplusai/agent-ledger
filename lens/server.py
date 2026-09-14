@@ -80,8 +80,9 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(204, b''); return
         methods = {'/api/options': 'options', '/api/overview': 'overview', '/api/session': 'session',
                    '/api/detail': 'detail', '/api/findings': 'findings', '/api/diagnostics': 'diagnostics',
-                   '/api/activity': 'activity', '/api/legacy': 'legacy', '/api/locate': 'locate'}
-        memory_methods = {'/api/briefing':'briefing','/api/home':'home','/api/search':'search','/api/read':'read','/api/notes':'notes','/api/recent':'sessions','/api/insights':'insights'}
+                   '/api/activity': 'activity', '/api/legacy': 'legacy', '/api/locate': 'locate',
+                   '/api/providers': 'providers', '/api/tools': 'tools'}
+        memory_methods = {'/api/briefing':'briefing','/api/home':'home','/api/search':'search','/api/read':'read','/api/notes':'notes','/api/recent':'sessions','/api/insights':'insights','/api/transcript':'transcript'}
         if parts.path not in methods and parts.path not in memory_methods and parts.path != '/api/connection':
             self.reply(404, {'error': 'Not found'}); return
         try:

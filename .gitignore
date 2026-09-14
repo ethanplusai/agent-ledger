@@ -15,3 +15,5 @@ private/
 node_modules/
 test-results/
 dist/
+build/
+.claude/settings.local.json

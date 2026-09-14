@@ -383,6 +383,36 @@ class StoreCase(StoreFixture, unittest.TestCase):
         self.assertEqual(overview['totals']['responses'],41)
         self.assertTrue(report.findings({})['largest']);self.assertEqual(report.options()['empty_sources'],0)
 
+    def test_tool_breakdown_counts_observed_failures_and_respects_filters(self):
+        fail='Process exited with code 1\nAssertionError: failed'
+        self.write([meta(),context(),call(),output(text='ok'),native(),
+                    call('c2','python -m pytest'),output('c2',fail),native('r2')]);self.ingest()
+        tools=Report(self.db).tools({})
+        self.assertEqual([r['tool'] for r in tools['items']],['functions.exec_command'])
+        self.assertEqual(tools['totals']['results'],2)
+        self.assertEqual(tools['totals']['failures'],1)
+        self.assertEqual(tools['totals']['failure_rate'],.5)
+        self.assertEqual(tools['totals']['largest'],max(r['largest'] for r in tools['items']))
+        # Unscoped activity must not leak into a filter that excludes its response.
+        self.assertEqual(Report(self.db).tools({'project':'/wrong'})['totals']['results'],0)
+
+    def test_session_reports_recorded_compaction_boundaries(self):
+        self.write([meta(),context(),native(),record('compacted',{}),native('r2')]);self.ingest()
+        data=Report(self.db).session({})
+        self.assertEqual(len(data['boundaries']),1)
+        boundary=data['boundaries'][0]
+        self.assertEqual(boundary['source'],data['responses'][0]['source'])
+        # The marker sits between the two recorded responses.
+        self.assertTrue(data['responses'][0]['offset']<boundary['offset']<data['responses'][1]['offset'])
+
+    def test_agent_totals_partition_the_recorded_history(self):
+        write_demo(self.home);self.ingest();report=Report(self.db)
+        providers={p['agent']:p for p in report.providers({})['providers']}
+        self.assertEqual(providers['claude']['totals']['records'],0)
+        self.assertEqual(providers['codex']['totals']['total'],report.totals({})['total'])
+        self.assertEqual(providers['codex']['sessions'],4)
+        self.assertTrue(providers['codex']['failures'])
+
 
 class Cli(unittest.TestCase):
     def invoke(self, *args):

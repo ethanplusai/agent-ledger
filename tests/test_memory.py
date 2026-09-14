@@ -174,3 +174,45 @@ class BriefingTests(unittest.TestCase):
         from unittest.mock import patch
         with patch.object(Memory,'insights',side_effect=AssertionError('Unexpected usage scan')):
             self.assertEqual(Memory(self.db).home({})['insights'],[])
+    def test_transcript_pairs_conversation_with_recorded_usage(self):
+        self.load([self.row(typ='user',text='Why did we choose SQLite?',ident='u',message='u'),self.row()])
+        sid=self.db.execute('SELECT sid FROM sessions').fetchone()[0]
+        data=Memory(self.db).transcript({'session':sid})
+        self.assertEqual(data['count'],2)
+        self.assertEqual([m['role'] for m in data['items']],['user','assistant'])
+        # The response is recorded on the assistant record, so it attaches there rather than to the question.
+        self.assertEqual(data['items'][0]['total'],0)
+        self.assertEqual(data['items'][1]['total'],70)
+        self.assertEqual(data['items'][1]['responses'],1)
+        self.assertEqual(data['items'][-1]['cumulative'],70)
+        self.assertEqual(data['recorded'],70)
+        self.assertTrue(data['items'][0]['citation'].startswith('message:'))
+        with self.assertRaises(ValueError):Memory(self.db).transcript({'session':'missing'})
+        with self.assertRaises(ValueError):Memory(self.db).transcript({})
+    def test_transcript_counts_tool_activity_against_its_message(self):
+        from lens.demo_memory import write_memory_demo
+        write_memory_demo(self.home);ClaudeImporter(self.db,self.home).run()
+        sid=self.db.execute("SELECT sid FROM sessions WHERE title LIKE 'Prepare the handoff%'").fetchone()[0]
+        data=Memory(self.db).transcript({'session':sid})
+        self.assertTrue(sum(m['calls'] for m in data['items']))
+        self.assertTrue(sum(m['failures'] for m in data['items']))
+        self.assertTrue(sum(m['compactions'] for m in data['items']))
+        self.assertEqual(data['items'][-1]['cumulative'],data['recorded'])
+    def test_agent_comparison_and_tool_breakdown_separate_the_agents(self):
+        from lens.demo_memory import write_memory_demo
+        write_memory_demo(self.home);ClaudeImporter(self.db,self.home).run()
+        codex=self.root/'codex';write_demo(codex);Importer(self.db,codex).run()
+        report=Report(self.db)
+        providers={p['agent']:p for p in report.providers({})['providers']}
+        self.assertTrue(providers['claude']['totals']['records'] and providers['codex']['totals']['records'])
+        self.assertIsNone(providers['claude']['totals']['credits'])
+        self.assertIsNotNone(providers['codex']['totals']['credits'])
+        self.assertEqual(providers['claude']['totals']['total']+providers['codex']['totals']['total'],
+                         report.totals({})['total'])
+        self.assertTrue(providers['claude']['failures'])
+        tools=report.tools({})
+        self.assertIn('shell',[r['tool'] for r in tools['items']])
+        self.assertIn('functions.exec_command',[r['tool'] for r in tools['items']])
+        self.assertEqual(tools['totals']['results'],sum(r['results'] for r in tools['items']))
+        self.assertEqual(report.tools({'agent':'claude'})['totals']['results']
+                         +report.tools({'agent':'codex'})['totals']['results'],tools['totals']['results'])

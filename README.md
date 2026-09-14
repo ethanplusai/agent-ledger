@@ -43,7 +43,15 @@ Usage review runs only when requested for a selected project. Start no longer pe
 
 Open **Usage** to see how much was input versus generated output, and which component dominates the available credit estimate. Token volume and estimated credits are different measurements; neither reveals your remaining subscription allowance.
 
-The default **Context per response** chart shows the input sent with each recorded model response, split into cached and uncached input where known. Select a bar to see its change from the previous matching response, output, and percentage of the recorded context limit. Expand **Compare responses in this page** for exact counts, or jump straight to one of the largest responses. **Read conversation near this response** connects the numbers to what you were doing.
+The default **Context per response** chart shows the input sent with each recorded model response, split into cached and uncached input where known. Select a bar to see its change from the previous matching response, output, and percentage of the recorded context limit. A dashed line marks a recorded compaction, so a drop in the next bar has a visible cause. Expand **Compare responses in this page** for exact counts, or jump straight to one of the largest responses. **Read conversation near this response** connects the numbers to what you were doing.
+
+**Claude Code and Codex, side by side** compares recorded tokens, sessions, responses and observed tool failures for each agent in the active filter. Token volume is comparable between agents; credits are not, because Claude usage has no verified credit rate. The **All agents** selector narrows every view to one agent.
+
+## Read the conversation with its cost
+
+The **Conversation** tab replays one session as it happened. Each recorded message shows the tokens of the responses attributed to it, a running total for the session, the tool calls that followed, and any failures or context resets. Attribution is positional: a response is attributed to the message it followed in the same source file. That is an ordering fact, not a claim about cause.
+
+The **Tools** tab breaks the same scope down by tool: observed results, how many failed, the text each returned, and the largest single result. Check **All filtered history** to widen it from the selected session to everything in the current filter. Observed bytes are not billed tokens, and a failed result can be a deliberate check.
 
 Context is not cumulative usage: sending the same 50,000-token context ten times records 500,000 input tokens. Deltas compare matching responses within the same source, across page boundaries; filters can skip intervening responses. A decrease does not by itself establish compaction. Unknown and conflicting counts remain unavailable. Largest-response rankings exclude legacy amounts and invalid counts.
 
@@ -55,7 +63,7 @@ Context is not cumulative usage: sending the same 50,000-token context ten times
 
 **“How can my next session remember this?”** Add a project note under Saved context, or load a text/Markdown file into the editor and review it before saving. Notes can be edited and deleted. Connecting an agent is optional; you can read and use the notes yourself.
 
-The project selector scopes all views. Global saved notes remain available within a project. Start shows recent sessions even if token usage is missing. Its daily grid covers the last 90 UTC dates; selecting a day opens Usage with that day's filter. Usage defaults to 30 UTC dates and supports model, session, turn, and descendant inspection.
+The project selector scopes all views. Global saved notes remain available within a project. Start shows recent sessions even if token usage is missing. Its daily grid covers the last 366 UTC dates and scrolls horizontally on narrow screens; selecting a day opens Usage with that day's filter. Usage defaults to 30 UTC dates and supports model, session, turn, and descendant inspection.
 
 ## Optional agent connection
 

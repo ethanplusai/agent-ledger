@@ -4,7 +4,7 @@ const $ = id => document.getElementById(id);
 let token = location.hash.slice(1) || sessionStorage.getItem('lens-token') || '';
 if (token) sessionStorage.setItem('lens-token', token);
 history.replaceState(null, '', location.pathname);
-const state = {session: '', selected: null, responses: [], sessionOffset: 0, responseOffset: 0, evidenceOffset: 0, diagnosticOffset: 0, activityOffset: 0, legacyOffset: 0, revision: 0};
+const state = {session: '', selected: null, responses: [], boundaries: [], sessionOffset: 0, responseOffset: 0, evidenceOffset: 0, diagnosticOffset: 0, activityOffset: 0, legacyOffset: 0, conversationOffset: 0, revision: 0};
 const number = v => v == null ? 'Unavailable' : Number(v).toLocaleString(undefined, {maximumFractionDigits: 0});
 const compact = v => v == null ? '—' : Number(v).toLocaleString(undefined, {notation: 'compact', maximumFractionDigits: 1});
 const credits = (v,precision=4) => v == null ? 'Unavailable' : Number(v).toLocaleString(undefined, {maximumFractionDigits: precision});
@@ -21,7 +21,9 @@ async function api(route, args={}, method='GET') {
   if (!response.ok || data.error) throw new Error(data.error || 'Local report request failed');
   return data;
 }
-function filters() {return {from:$('from').value,to:$('to').value,project:$('project').value,model:$('model').value,sort:$('sort').value};}
+function filters() {return {from:$('from').value,to:$('to').value,project:$('project').value,model:$('model').value,agent:$('agent').value,sort:$('sort').value};}
+const agentName = provider => provider === 'anthropic' ? 'Claude Code' : 'Codex';
+const toolName = tool => tool === 'functions.exec_command' || tool === 'shell' ? 'Terminal' : tool === 'read' ? 'Read file' : tool || 'Unknown tool';
 function scope() {return {...filters(),session:state.session,turn:$('turn').value,descendants:$('descendants').checked?'1':''};}
 function option(select, label, value) {const o = el('option', label); o.value=value; select.append(o);}
 function metrics(t) {
@@ -49,11 +51,32 @@ function metrics(t) {
   $('scope-note').textContent = ($('from').value || 'Earliest')+' to '+($('to').value || 'latest')+' UTC. Totals count each native response once across sessions. Copied session history can overlap. '+(t.invalid?t.invalid+' invalid or conflicting records excluded. ':'')+'Credits are rate references, not account charges. Unknown speed uses a Standard-rate assumption. Legacy amounts have no reliable model attribution.';
   $('astra').setAttribute('aria-pressed',String($('model').value==='gpt-6-astra'));
 }
+function renderProviders(data) {
+  clear('providers');
+  const rows=data.providers.filter(p=>p.totals.records);
+  // One agent alone is not a comparison; the totals above already describe it.
+  if(rows.length<2){$('agent-compare').hidden=true;return;}
+  $('agent-compare').hidden=false;
+  const peak=Math.max(1,...rows.map(p=>p.totals.total));
+  for(const p of rows){
+    const card=el('div',null,'provider');
+    card.append(el('div',p.label,'provider-label'),el('div',compact(p.totals.total)+' tokens','provider-value'));
+    const bar=el('div',null,'provider-bar'),fill=el('div',null,'fill');
+    fill.style.width=Math.round(p.totals.total/peak*100)+'%';bar.append(fill);card.append(bar);
+    const share=data.totals.total?Math.round(p.totals.total/data.totals.total*100):0;
+    card.append(el('div',share+'% of recorded tokens · '+number(p.sessions)+' sessions · '+number(p.totals.responses)+' responses','provider-note'));
+    card.append(el('div',p.totals.credits==null?'No verified credit rate for this agent':credits(p.totals.credits,2)+' estimated credits','provider-note'));
+    card.append(el('div',p.results?number(p.failures)+' of '+number(p.results)+' observed tool results failed':'No linked tool results','provider-note'));
+    $('providers').append(card);
+  }
+  $('provider-note').textContent=data.notice;
+}
 async function overview(focus='') {
   const revision=++state.revision;
   status('Reading filtered history…');
-  const data=await api('overview',{...filters(),offset:state.sessionOffset,focus});
+  const [data,providers]=await Promise.all([api('overview',{...filters(),offset:state.sessionOffset,focus}),api('providers',filters())]);
   if (revision!==state.revision)return;
+  renderProviders(providers);
   state.sessionOffset=data.offset;metrics(data.totals); clear('sessions'); $('session-count').textContent=data.count;
   for (const s of data.sessions) {
     const b=el('button',null,'session'); b.dataset.session=s.sid; b.setAttribute('aria-pressed',String(s.sid===state.session));
@@ -71,13 +94,14 @@ async function overview(focus='') {
   else {const selected=data.sessions.find(s=>s.sid===state.session) || data.sessions[0];if(state.session!==selected.sid){state.responseOffset=0;$('turn').value='';}state.session=selected.sid;document.querySelectorAll('.session').forEach(n=>n.setAttribute('aria-pressed',String(n.dataset.session===state.session)));await openSession(selected);}
   status('Local history ready');
 }
-function resetSession(){state.session='';state.responses=[];state.selected=null;$('session-title').textContent='No session selected';$('session-project').textContent='';for(const id of ['chart','context-summary','context-readout','context-rows','detail','evidence','findings','session-totals','all-activity','legacy-amounts','diagnostics','finding-count','diagnostic-count','session-coverage','response-page'])clear(id);clear('turn');option($('turn'),'Whole session','');clear('response');option($('response'),'No responses','');for(const id of ['evidence-more','activity-more','legacy-more','diagnostics-more'])$(id).hidden=true;}
+function resetSession(){state.session='';state.responses=[];state.boundaries=[];state.selected=null;state.conversationSession=null;$('session-title').textContent='No session selected';$('session-project').textContent='';for(const id of ['chart','context-summary','context-readout','context-rows','detail','evidence','findings','session-totals','all-activity','legacy-amounts','diagnostics','finding-count','diagnostic-count','session-coverage','response-page','conversation','conversation-summary','conversation-page','tool-rows','tool-metrics','tool-count','tools-note','conversation-note'])clear(id);clear('turn');option($('turn'),'Whole session','');clear('response');option($('response'),'No responses','');for(const id of ['evidence-more','activity-more','legacy-more','diagnostics-more'])$(id).hidden=true;}
 async function openSession(session) {
   if(session){$('session-title').textContent=session.title||'Session · '+session.first.slice(0,10);$('session-project').textContent=session.project+(session.parent?' · Parent: '+session.parent+' · '+(session.relationship||'relationship unspecified'):'');}
   const selectedScope=JSON.stringify(scope());
   const [data, findings, diagnostics]=await Promise.all([api('session',{...scope(),offset:state.responseOffset}),api('findings',scope()),api('diagnostics',{session:state.session})]);
   if(selectedScope!==JSON.stringify(scope()))return;
   state.responses=data.responses;
+  state.boundaries=data.boundaries||[];
   renderContext(data);
   const turn=$('turn').value; clear('turn'); option($('turn'),'Whole session',''); data.turns.forEach((t,i)=>{option($('turn'),'Task '+(i+1)+' · '+t.records+' records',t.turn);$('turn').lastElementChild.title=t.turn;});$('turn').value=turn;
   $('session-coverage').textContent=data.totals.legacy||data.totals.invalid?'Partial coverage':'';
@@ -86,6 +110,8 @@ async function openSession(session) {
   $('responses-prev').disabled=data.offset===0;$('responses-next').disabled=data.offset+100>=data.count;$('response-page').textContent=data.count?(data.offset+1)+'–'+Math.min(data.offset+100,data.count)+' / '+data.count:'0 responses';
   drawChart();renderFindings(findings);renderDiagnostics(diagnostics,false);
   state.activityOffset=state.legacyOffset=0;clear('all-activity');clear('legacy-amounts');if(!$('view-activity').hidden)await loadActivity(false);
+  if(!$('view-tools').hidden)await loadTools();
+  if(!$('view-conversation').hidden)await loadConversation();
   if(data.responses.length)await selectResponse(data.responses.some(r=>r.id===state.selected)?state.selected:data.responses[0].id);
   else {clear('detail');clear('evidence');$('detail').append(el('p','This scope has no attributable native responses. Legacy amounts remain in the session totals.','notice'));}
 }
@@ -113,7 +139,14 @@ function drawChart(){
     const stride=Math.max(1,Math.ceil(rs.length/(width/35)));
     if(i===0||i===rs.length-1||(i%stride===0&&i<rs.length-stride))svg.append(svgEl('text',{x:x+step*.33,y:height-7,'text-anchor':'middle',class:'axis-text'},state.responseOffset+i+1));
   });
-  $('chart').append(svg);$('chart-note').textContent=(sums.some(x=>x==null)?'Gray marks: unavailable breakdown. ':'')+(context&&rs.some(r=>!r.usage.errors.length&&r.usage.cached_input_tokens==null)?'Gray bars: input known, cache split unavailable. ':'')+(credit?'Per-response rate estimates; not account charges.':context?'Height = input sent with this response, including cached context. This is not cumulative usage. Select a bar to see the change.':'Input includes reprocessed context. Unsplit output uses Other output.');
+  // A recorded compaction marks where the agent's context was reset, which is what a drop in the next bar follows.
+  const resets=new Set();
+  for(const b of state.boundaries){const i=rs.findIndex(r=>r.source===b.source&&r.offset>=b.offset);if(i>0)resets.add(i);}
+  for(const i of resets){const x=left+i*step;
+    svg.append(svgEl('line',{x1:x,x2:x,y1:top,y2:bottom,class:'compaction'}));
+    svg.append(svgEl('text',{x:x+4,y:top+8,class:'compaction-text'},'context reset'));
+  }
+  $('chart').append(svg);$('chart-note').textContent=(sums.some(x=>x==null)?'Gray marks: unavailable breakdown. ':'')+(context&&rs.some(r=>!r.usage.errors.length&&r.usage.cached_input_tokens==null)?'Gray bars: input known, cache split unavailable. ':'')+(resets.size?'Dashed line: a recorded compaction reset the context here. ':'')+(credit?'Per-response rate estimates; not account charges.':context?'Height = input sent with this response, including cached context. This is not cumulative usage. Select a bar to see the change.':'Input includes reprocessed context. Unsplit output uses Other output.');
 }
 function contextChange(v){return v==null?'No baseline':(v>0?'+':'')+number(v);}
 function renderContextReadout(r){
@@ -187,7 +220,9 @@ async function selectResponse(id) {
 function activityNode(a) {
   const details=el('details',null,'activity'),summary=el('summary');
   const tool=a.kind==='boundary'?'Compaction':a.tool?.endsWith('exec_command')?'Terminal':a.tool||'Unknown tool';
-  summary.append(el('strong',tool),el('span',compact(a.bytes)+' B','activity-size'),el('span',a.action?.slice(0,180)||'Generic activity','activity-action'));
+  summary.append(el('strong',tool),el('span',compact(a.bytes)+' B','activity-size'));
+  if(a.failed)summary.append(el('span','failed','activity-failed'));
+  summary.append(el('span',a.action?.slice(0,180)||'Generic activity','activity-action'));
   details.append(summary);
   details.append(el('p',number(a.bytes)+' bytes · '+number(a.chars)+' characters'+(a.truncated?' · bounded or truncated preview':'')+' · '+a.association,'activity-meta'));
   if(a.operations&&a.operations!=='[]'){
@@ -217,6 +252,79 @@ async function loadActivity(append){
   if(!legacy.count)$('legacy-amounts').append(el('p','No legacy amounts in this filtered scope.','small muted'));
   $('activity-more').hidden=state.activityOffset+50>=activity.count;$('legacy-more').hidden=state.legacyOffset+50>=legacy.count;
 }
+function renderTools(data) {
+  clear('tool-metrics');clear('tool-rows');
+  const t=data.totals;
+  $('tool-count').textContent=t.results||'';
+  const values=[
+    ['Tool results',number(t.results),t.tools+(t.tools===1?' distinct tool':' distinct tools')],
+    ['Failed results',number(t.failures),t.failure_rate==null?'No observed results':(t.failure_rate*100).toFixed(1)+'% of observed results'],
+    ['Text returned',compact(t.bytes)+' B','Observed bytes, not billed tokens'],
+    ['Largest result',compact(t.largest)+' B','Single observed result']
+  ];
+  for(const [label,value,note] of values){
+    const metric=el('div',null,'metric');
+    metric.append(el('div',label,'metric-label'),el('div',value,'metric-value'),el('div',note,'metric-note'));
+    $('tool-metrics').append(metric);
+  }
+  const peak=Math.max(1,...data.items.map(r=>r.results));
+  for(const r of data.items){
+    const tr=el('tr'),first=el('td');
+    const bar=el('div',null,'tool-bar'),fill=el('div',null,'fill');
+    fill.style.width=Math.round(r.results/peak*100)+'%';bar.append(fill);
+    first.append(el('div',toolName(r.tool),'tool-name'),bar);
+    const failed=el('td',number(r.failures));
+    if(r.failures)failed.className='tool-failed';
+    tr.append(first,el('td',number(r.results)),failed,
+              el('td',r.failure_rate==null?'—':(r.failure_rate*100).toFixed(1)+'%'),
+              el('td',compact(r.bytes)),el('td',compact(r.largest)));
+    $('tool-rows').append(tr);
+  }
+  if(!data.items.length){const tr=el('tr'),td=el('td','No tool results linked to a response in this scope.');td.colSpan=6;tr.append(td);$('tool-rows').append(tr);}
+  $('tools-note').textContent=data.notice;
+}
+async function loadTools(){renderTools(await api('tools',$('tools-all').checked?filters():scope()));}
+function renderTranscript(data) {
+  clear('conversation');
+  $('conversation-summary').textContent=data.count
+    ? `${number(data.count)} recorded messages · ${compact(data.recorded)} tokens across this session. The running total follows the conversation.`
+    : 'No recorded conversation text for this session. Tool-only sources have no message excerpts.';
+  const peak=Math.max(1,data.peak);
+  for(const m of data.items){
+    const row=el('article',null,'turn turn-'+m.role);
+    const head=el('div',null,'turn-head');
+    head.append(el('h4',m.role==='user'?'You':'Assistant'),el('span',m.timestamp?m.timestamp.slice(0,10)+' '+m.timestamp.slice(11,19)+' UTC':'Time unavailable','turn-time'));
+    if(m.models.length)head.append(el('span',m.models.map(modelName).join(', '),'turn-time'));
+    row.append(head,el('pre',m.text||'(No recorded text)'));
+    if(m.clipped)row.append(el('p','Excerpt clipped; open the source to read the rest.','section-note'));
+    const cost=el('div',null,'turn-cost'),bar=el('div',null,'turn-bar'),fill=el('div',null,'fill');
+    // Linear against the session peak, so one dominant turn still reads as dominant. A recorded but
+    // tiny turn keeps a sliver of width so it stays visible; the exact count is printed beside it.
+    fill.style.width=(m.total?Math.max(.7,m.total/peak*100):0).toFixed(2)+'%';bar.append(fill);
+    const facts=el('div',null,'turn-facts');
+    facts.append(el('span',m.total?number(m.total)+' tokens here':'No usage recorded here','turn-here'));
+    facts.append(el('span','Running total '+compact(m.cumulative),'turn-running'));
+    if(m.calls)facts.append(el('span',m.calls+(m.calls===1?' tool call':' tool calls'),'turn-tools'));
+    if(m.failures)facts.append(el('span',m.failures+' failed','turn-failed'));
+    if(m.compactions)facts.append(el('span','context reset','turn-compact'));
+    if(m.credits)facts.append(el('span',credits(m.credits,3)+' cr','turn-running'));
+    cost.append(bar,facts);
+    row.append(cost);
+    const open=el('button','Read in context');
+    open.addEventListener('click',guarded(()=>readCitation(m.citation)));
+    row.append(open);
+    $('conversation').append(row);
+  }
+  $('conversation-page').textContent=data.count?(data.offset+1)+'–'+Math.min(data.offset+data.items.length,data.count)+' / '+data.count:'0 messages';
+  $('conversation-prev').disabled=data.offset===0;
+  $('conversation-next').disabled=data.offset+data.items.length>=data.count;
+  $('conversation-note').textContent=data.notice;
+}
+async function loadConversation() {
+  if(!state.session){clear('conversation');$('conversation-summary').textContent='Select a session to replay its recorded conversation.';return;}
+  if(state.conversationSession!==state.session){state.conversationSession=state.session;state.conversationOffset=0;}
+  renderTranscript(await api('transcript',{session:state.session,offset:state.conversationOffset}));
+}
 async function setTab(name) {
   for(const button of document.querySelectorAll('[role="tab"]')) {
     const selected=button.id==='tab-'+name;
@@ -228,6 +336,8 @@ async function setTab(name) {
     state.activityOffset=state.legacyOffset=0;
     await loadActivity(false);
   }
+  if(name==='tools')await loadTools();
+  if(name==='conversation')await loadConversation();
 }
 const tabs=[...document.querySelectorAll('[role="tab"]')];
 for(const tab of tabs) {
@@ -257,7 +367,9 @@ new ResizeObserver(entries=>{
 $('activity-more').addEventListener('click',guarded(async()=>{state.activityOffset+=50;const data=await api('activity',{session:state.session,turn:$('turn').value,offset:state.activityOffset});for(const a of data.activities)$('all-activity').append(activityNode(a));$('activity-more').hidden=state.activityOffset+50>=data.count;}));
 $('legacy-more').addEventListener('click',guarded(async()=>{state.legacyOffset+=50;const data=await api('legacy',{...scope(),offset:state.legacyOffset});for(const r of data.items)$('legacy-amounts').append(el('p',r.kind+' · '+r.timestamp+' · '+number(r.usage.displayed_total)+' tokens · source '+r.source+' · byte '+r.offset,'diagnostic'));$('legacy-more').hidden=state.legacyOffset+50>=data.count;}));
 async function init(){const data=await api('options');for(const p of data.projects)option($('project'),p,p);for(const m of data.models)option($('model'),modelName(m),m);$('from').value=data.from;$('to').value=data.to;$('mode').textContent=data.demo?'Demo data':'Local history';$('coverage').textContent=data.sources+' discovered cached sources · '+data.empty_sources+' without usable usage. '+(data.import.issues||[]).join(' ');}
-for(const id of ['from','to','model','sort'])$(id).addEventListener('change',guarded(()=>{state.sessionOffset=state.responseOffset=0;return overview();}));
+for(const id of ['from','to','model','agent','sort'])$(id).addEventListener('change',guarded(()=>{state.sessionOffset=state.responseOffset=0;return overview();}));
+$('tools-all').addEventListener('change',guarded(loadTools));
+for(const [id,delta] of [['conversation-prev',-40],['conversation-next',40]])$(id).addEventListener('click',guarded(()=>{state.conversationOffset=Math.max(0,state.conversationOffset+delta);return loadConversation();}));
 $('astra').addEventListener('click',guarded(()=>{if(![...$('model').options].some(o=>o.value==='gpt-6-astra'))option($('model'),'gpt-6-astra','gpt-6-astra');$('model').value='gpt-6-astra';state.sessionOffset=0;return overview();}));
 $('all-dates').addEventListener('click',guarded(()=>{$('from').value=$('to').value='';state.sessionOffset=0;return overview();}));
 for(const id of ['turn','descendants'])$(id).addEventListener('change',guarded(()=>{state.responseOffset=0;return openSession();}));
