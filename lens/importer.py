@@ -60,6 +60,32 @@ def observed(output, limit):
     return size, chars, h.hexdigest(), ''.join(preview), chars > limit or omitted
 
 
+CHUNK_STATUS_WINDOW = 1024
+
+
+def chunk_exit_codes(blocks):
+    """Exit statuses recorded inside result chunks, newest Codex exec format.
+
+    One exec call runs a script, and the result carries one complete JSON object per command in it,
+    each with its own recorded exit_code. Only a block that parses whole as such an object counts.
+    No number is scraped out of surrounding prose, so an unrecognized result reports nothing.
+    """
+    codes = []
+    for block in blocks:
+        text = block if isinstance(block, str) else block.get('text') if isinstance(block, dict) else None
+        # The status precedes the captured output, so a chunk that lacks it early is not one.
+        # The window keeps a large unrelated result from being parsed just to be rejected.
+        if not isinstance(text, str) or not text.startswith('{') or '"exit_code"' not in text[:CHUNK_STATUS_WINDOW]:
+            continue
+        try:
+            parsed = json.loads(text)
+        except ValueError:
+            continue
+        if isinstance(parsed, dict) and type(parsed.get('exit_code')) is int:
+            codes.append(parsed['exit_code'])
+    return codes
+
+
 def action_info(item):
     name = short(item.get('name'), 200) or 'Unknown tool'
     args = item.get('arguments', item.get('input', ''))
@@ -415,6 +441,12 @@ class Importer:
         match = re.search(r'(?m)^Process exited with code ([0-9]+)\s*$', preview)
         if match:
             failure = int(match.group(1)) != 0
+        elif code is None and kind == 'output':
+            # A non-zero status recorded for any command in the script is an explicit failure signal.
+            # A recorded zero is equally explicit, so it settles the result rather than leaving it unknown.
+            chunk_codes = chunk_exit_codes(blocks)
+            if chunk_codes:
+                failure = any(value != 0 for value in chunk_codes)
         old = self.db.execute('SELECT hash FROM activities WHERE source=? AND call_id=? AND kind=?', (sid, call, kind)).fetchone()
         if old:
             if kind == 'output' and old['hash'] != hash_value:

@@ -10,6 +10,11 @@
 - Record a Claude compaction as an activity, matching the Codex adapter; it was previously counted but never stored.
 - Extend the daily grid from 90 days to the full 366 days already returned, and scroll it on narrow screens.
 - Give the synthetic demo an interleaved conversation and Claude tool activity so these views have something to show.
+- Read the exit status Codex records inside each exec result chunk. A script runs several commands and each one
+  reports its own status, so results that failed were previously counted as successful. On a real history this
+  moved Codex from 0 recorded failures to 855 of 11,459 observed results, with no other tool affected.
+- Lead the README with a recorded walkthrough of the demo instead of a static screenshot, and regenerate every
+  screenshot against the current interface.
 
 ## 0.2.0 — project recovery and handoffs
 

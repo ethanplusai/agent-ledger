@@ -362,6 +362,39 @@ class StoreCase(StoreFixture, unittest.TestCase):
         categories=[x['category'] for x in Report(self.db).findings({})['repeated']]
         self.assertIn('Repeated command failures',categories)
 
+    def test_chunked_exit_status_establishes_failure(self):
+        def chunk(code):
+            return json.dumps({'chunk_id':'c'+str(code),'wall_time_seconds':.1,'exit_code':code,'output':'done\n'})
+        def script(cid, codes, prose='Script completed\nWall time 0.1 seconds\nOutput:\n'):
+            blocks=[{'type':'input_text','text':prose}]+[{'type':'input_text','text':chunk(c)} for c in codes]
+            return record('response_item',dict(type='custom_tool_call_output',call_id=cid,output=blocks))
+        self.write([meta(),context(),
+            record('response_item',dict(type='custom_tool_call',name='exec',call_id='c1',arguments='{}')),
+            script('c1',[0]),native(),
+            record('response_item',dict(type='custom_tool_call',name='exec',call_id='c2',arguments='{}')),
+            script('c2',[0,1]),native('r2'),
+            record('response_item',dict(type='custom_tool_call',name='exec',call_id='c3',arguments='{}')),
+            script('c3',[],'Script completed. The previous run gave exit_code 1 but this one did not.'),native('r3')]);self.ingest()
+        flags={r['call_id']:r['failed'] for r in self.db.execute("SELECT call_id,failed FROM activities WHERE kind='output'")}
+        self.assertEqual(flags['c1'],0)
+        # A non-zero status for any command in the script establishes the failure.
+        self.assertEqual(flags['c2'],1)
+        # A number in prose is not a recorded status, so nothing is established.
+        self.assertEqual(flags['c3'],0)
+
+    def test_failure_ignores_unparsable_and_non_integer_status(self):
+        def script(cid, text):
+            return record('response_item',dict(type='custom_tool_call_output',call_id=cid,
+                          output=[{'type':'input_text','text':text}]))
+        self.write([meta(),context(),
+            record('response_item',dict(type='custom_tool_call',name='exec',call_id='c1',arguments='{}')),
+            script('c1','{"chunk_id":"a","exit_code":"1","output":"x"}'),native(),
+            record('response_item',dict(type='custom_tool_call',name='exec',call_id='c2',arguments='{}')),
+            script('c2','{"chunk_id":"b","exit_code":1,'),native('r2')]);self.ingest()
+        flags={r['call_id']:r['failed'] for r in self.db.execute("SELECT call_id,failed FROM activities WHERE kind='output'")}
+        self.assertEqual(flags['c1'],0)
+        self.assertEqual(flags['c2'],0)
+
     def test_filters_totals_and_paging(self):
         self.write([meta(),context(),native(),context(model='gpt-5.6-sol'),native('r2')]);self.ingest()
         self.assertEqual(self.total(model='gpt-5.6-sol')['responses'],1)

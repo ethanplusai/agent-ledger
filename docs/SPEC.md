@@ -22,13 +22,17 @@ A developer can clone the source, run one Python command, and recover local Clau
 - Paged preceding tool results, plain-text previews, observed byte/character size, explicit or chronological association.
 - Findings: largest results, exact unchanged observed output, repeated recorded failures, largest input increases, most reasoning output.
 - Session activity browser, including unassociated calls/results and compaction markers; legacy amount evidence; import diagnostics.
-- Minimal neutral workspace: unboxed overview values, compact session navigation, one primary chart, and separate Response/Findings/Activity/Coverage tabs.
+- Per-agent totals for Claude Code and Codex in the active filter, and an agent filter that narrows every view. Token volume is comparable between agents; credits are not.
+- Conversation replay pairing each recorded message with the usage of the responses attributed to it, a running session total, following tool calls, failures and context resets. Attribution is positional: a response is attributed to the message it preceded in the same source file, which is an ordering fact and not a causal claim.
+- Tool breakdown by observed results, recorded failures, returned bytes and largest single result, scoped to the selected session or to all filtered history.
+- Minimal neutral workspace: unboxed overview values, compact session navigation, one primary chart, and separate Response/Conversation/Tools/Findings/Activity/Coverage tabs.
 - System-derived initial light/dark theme and 360/736/1024+ px layouts. Mobile session browsing is an explicit disclosure.
 
 ## Deliberate conservative limits
 
 - Legacy first snapshots/deltas are observation-time session amounts and can represent multiple responses or earlier work. Legacy child history is excluded because copied ancestry lacks unique IDs. Ambiguous native/legacy overlap is excluded and diagnosed rather than apportioned.
 - Native ownership uses explicit recorded thread IDs. Parent relationships alone do not establish that all child activity is new. Provenance exposes each owner/session appearance.
+- A tool result counts as failed only where its source recorded an exit status or an error flag: an explicit field, a recognized process-exit line, a complete per-command JSON chunk in an exec result, or a Claude error flag. No status is scraped from surrounding prose. A tool that records none reports no failures rather than none having occurred, so failure counts are not comparable between agents that record differently.
 - Model and speed resolve from the preceding same-turn context, or the first later context if no earlier context exists. No inference from response latency or reasoning effort. Unknown formats/settings remain unavailable.
 - Exact command recognition preserves all arguments and working-directory context. This favors missed matches over falsely merging different operations. Wrapper differences and ambiguous tools can prevent findings.
 - Missing source files are retained with warnings, so a temporary permissions/discovery issue cannot silently erase coverage. A new cache rebuild intentionally resets that policy.
