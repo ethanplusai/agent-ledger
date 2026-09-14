@@ -23,7 +23,9 @@ async function api(route, args={}, method='GET') {
 }
 function filters() {return {from:$('from').value,to:$('to').value,project:$('project').value,model:$('model').value,agent:$('agent').value,sort:$('sort').value};}
 const agentName = provider => provider === 'anthropic' ? 'Claude Code' : 'Codex';
-const toolName = tool => tool === 'functions.exec_command' || tool === 'shell' ? 'Terminal' : tool === 'read' ? 'Read file' : tool || 'Unknown tool';
+// Distinct recorded tools must keep distinct labels; two agents both run a terminal.
+const toolName = tool => tool === 'functions.exec_command' ? 'Terminal' : tool === 'shell' ? 'Shell'
+  : tool === 'read' ? 'Read file' : tool || 'Unknown tool';
 function scope() {return {...filters(),session:state.session,turn:$('turn').value,descendants:$('descendants').checked?'1':''};}
 function option(select, label, value) {const o = el('option', label); o.value=value; select.append(o);}
 function metrics(t) {

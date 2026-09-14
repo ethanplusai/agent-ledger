@@ -26,8 +26,8 @@ def main():
             failures.append((relative,'symlink requires review'));continue
         if path.suffix in ('.jsonl','.sqlite','.sqlite3','.db','.log') or path.name.startswith('.env'):
             failures.append((relative,'private artifact file type'));continue
-        if path.suffix=='.png' and relative.startswith('docs/screenshots/demo-'):
-            continue  # Only manually inspected synthetic screenshots are allowed.
+        if path.suffix in ('.png','.gif') and relative.startswith('docs/screenshots/demo-'):
+            continue  # Only manually inspected synthetic screenshots and recordings are allowed.
         data=path.read_bytes()
         if b'\0' in data:
             failures.append((relative,'unexpected binary'));continue

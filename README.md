@@ -6,7 +6,9 @@ A local workspace for Claude Code and Codex history. Start with understandable u
 
 No website, hosted service, account, model subscription, or build step. Clone the public source and run it on your computer. MIT licensed; Python 3.10+ and its standard library, including SQLite FTS5.
 
-![Synthetic project briefing and handoff](docs/screenshots/demo-briefing-1440.png)
+![Recorded walkthrough of the synthetic demo: choosing a project, reviewing measured patterns, comparing Claude Code with Codex, replaying a conversation with what each turn cost, and breaking the work down by tool](docs/screenshots/demo-tour.gif)
+
+*Recorded from `python3 ledger.py --demo`. Everything shown is generated example data.*
 
 ## Run locally
 
