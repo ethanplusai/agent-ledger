@@ -162,8 +162,15 @@ class Report:
                             'limit_share': u['input_tokens']/r['context_limit'] if valid and r['context_limit'] else None}
             rows.append(r)
         valid_sql = "SELECT * FROM ("+sql+") WHERE kind='native' AND conflict=0 AND json_array_length(usage,'$.errors')=0"
-        context_summary = dict(self.db.execute("SELECT COUNT(*) count,MAX(json_extract(usage,'$.input_tokens')) peak,AVG(json_extract(usage,'$.input_tokens')) average FROM ("+valid_sql+")", values).fetchone())
+        context_summary = dict(self.db.execute("SELECT COUNT(*) count,MAX(json_extract(usage,'$.input_tokens')) peak,AVG(json_extract(usage,'$.input_tokens')) average,SUM(json_extract(usage,'$.displayed_total')) total FROM ("+valid_sql+")", values).fetchone())
         largest = [self.response(r) for r in self.db.execute(valid_sql+" ORDER BY json_extract(usage,'$.displayed_total') DESC,id LIMIT 3", values)]
+        drivers = [dict(r) for r in self.db.execute("SELECT source,turn,MIN(id) response,COUNT(*) responses,SUM(json_extract(usage,'$.displayed_total')) tokens,SUM(json_extract(usage,'$.input_tokens')) input,SUM(json_extract(usage,'$.output_tokens')) output FROM ("+valid_sql+") GROUP BY source,turn ORDER BY tokens DESC LIMIT 3",values)]
+        for driver in drivers:
+            appearance=self.db.execute('SELECT source,offset FROM appearances WHERE id=?',(driver['response'],)).fetchone()
+            message=self.db.execute("SELECT id,text FROM messages WHERE source=? AND offset<=? AND role='user' ORDER BY offset DESC LIMIT 1",(appearance['source'],appearance['offset'])).fetchone()
+            driver['sid']=self.db.execute('SELECT sid FROM sessions WHERE source=?',(driver['source'],)).fetchone()[0]
+            driver['title']=message['text'][:160] if message else 'Recorded task'
+            driver['citation']='message:'+str(message['id']) if message else None
         scope = dict(args); scope.pop('turn', None)
         where, params = self.filters(scope)
         turns = [dict(r) for r in self.db.execute(f'''SELECT turn,MIN(timestamp) first,COUNT(DISTINCT key) records
@@ -177,7 +184,7 @@ class Report:
             boundaries = [dict(x) for x in self.db.execute(
                 f"""SELECT source,offset,timestamp,boundary FROM activities
                     WHERE kind='boundary' AND source IN ({marks}) ORDER BY source,offset""", sources)]
-        return {'responses': rows, 'context_summary': context_summary, 'largest': largest, 'totals': self.totals(args), 'turns': turns, 'offset': offset,
+        return {'responses': rows, 'context_summary': context_summary, 'drivers': drivers, 'largest': largest, 'totals': self.totals(args), 'turns': turns, 'offset': offset,
                 'boundaries': boundaries,
                 'count': self.db.execute('SELECT COUNT(*) FROM ('+sql+") WHERE kind='native'", values).fetchone()[0]}
 

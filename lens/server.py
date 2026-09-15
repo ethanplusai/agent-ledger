@@ -3,6 +3,7 @@ import json
 import secrets
 import sqlite3
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -10,6 +11,7 @@ from .query import Report
 from .storage import connect
 from .memory import Memory
 from .mcp import config
+from .assistant import Questions, evidence_packet
 
 ASSETS = Path(__file__).with_name('assets')
 
@@ -23,10 +25,15 @@ class LocalServer(ThreadingHTTPServer):
         self.db_path, self.refresh = db_path, refresh
         self.import_report = import_report or {}
         self.demo = demo
+        self.questions = Questions(demo=demo)
         self.lock = threading.Lock()
         super().__init__(('127.0.0.1', 0), Handler)
         self.origin = f'http://127.0.0.1:{self.server_port}'
         self.url = self.origin + '/#' + self.token
+
+    def server_close(self):
+        self.questions.close()
+        super().server_close()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -78,6 +85,13 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(200, (ASSETS/filename).read_bytes(), mime); return
         if parts.path == '/favicon.ico':
             self.reply(204, b''); return
+        if parts.path in ('/api/ask/options','/api/ask/status'):
+            try:
+                args=parse_qs(parts.query,max_num_fields=2)
+                result=self.server.questions.options() if parts.path.endswith('/options') else self.server.questions.get(args.get('id',[''])[0])
+                self.reply(200,result)
+            except ValueError as error:self.reply(400,{'error':str(error)})
+            return
         methods = {'/api/options': 'options', '/api/overview': 'overview', '/api/session': 'session',
                    '/api/detail': 'detail', '/api/findings': 'findings', '/api/diagnostics': 'diagnostics',
                    '/api/activity': 'activity', '/api/legacy': 'legacy', '/api/locate': 'locate',
@@ -113,6 +127,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.allowed(True):
             return
+        if self.path in ('/api/ask/prepare','/api/ask/start','/api/ask/cancel'):
+            self.ask(); return
         if self.path in ('/api/notes/save','/api/notes/delete'):
             self.write_note(); return
         if self.path != '/api/refresh':
@@ -126,6 +142,31 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(500, {'error': 'Refresh failed. Check local cache and history permissions.'})
         finally:
             self.server.lock.release()
+
+    def ask(self):
+        if self.headers.get('Transfer-Encoding') or self.headers.get('Content-Type')!='application/json':
+            self.reply(400,{'error':'Use a bounded JSON request'});return
+        try:
+            length=int(self.headers.get('Content-Length','0'))
+            if not 0<length<=150000:raise ValueError('Question request is too large.')
+            args=json.loads(self.rfile.read(length))
+            if not isinstance(args,dict):raise ValueError('Invalid question request.')
+            if self.path.endswith('/prepare'):
+                with self.server.lock:
+                    db=connect(self.server.db_path)
+                    deadline=time.monotonic()+8
+                    db.set_progress_handler(lambda: time.monotonic()>deadline,10000)
+                    try:packet=evidence_packet(db,args)
+                    finally:db.close()
+                result=self.server.questions.prepare(packet)
+            else:
+                key=args.get('id')
+                if not isinstance(key,str) or len(key)>100:raise ValueError('Invalid question identifier.')
+                result=self.server.questions.start(key) if self.path.endswith('/start') else self.server.questions.cancel(key)
+            self.reply(200,result)
+        except (ValueError,UnicodeError,RecursionError) as error:
+            self.reply(400,{'error':str(error) if isinstance(error,ValueError) and not isinstance(error,json.JSONDecodeError) else 'Invalid question request.'})
+        except sqlite3.Error:self.reply(500,{'error':'Could not retrieve local evidence. Try again after the import completes.'})
 
     def write_note(self):
         if self.headers.get('Transfer-Encoding') or self.headers.get('Content-Type') != 'application/json':

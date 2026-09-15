@@ -4,8 +4,8 @@ Validated locally on macOS, September 12, 2026. Automated fixtures and screensho
 
 | Check | Result |
 | --- | --- |
-| Python 3.14 regression suite | 88 tests passed |
-| Python 3.12 regression suite | 88 tests passed |
+| Python 3.14 regression suite | 112 tests passed |
+| Python 3.12 regression suite | 112 tests passed |
 | Usage browser suite | Passed context defaults, per-response changes/table selection, largest-response navigation, contributor explanation, selection, keyboard tabs/chart, filters, refresh, evidence, inert text, empty states, themes, and 360/736/1024/1440 widths |
 | Project briefing browser suite | Passed source navigation, copied handoff contents, editing/saving without duplicates, per-project draft isolation, and mobile layouts |
 | Combined workspace browser suite | Passed finding-to-evidence navigation, search/read/save/edit/delete, day selection, MCP configuration, empty/error recovery, narrow layouts, and no external requests |
@@ -19,6 +19,12 @@ Validated locally on macOS, September 12, 2026. Automated fixtures and screensho
 | Visual inspection | Synthetic Start light/dark/mobile and Usage screenshots reviewed |
 
 The earlier Codex engine was also exercised with a generated 3,104.1 MiB file. That historical stress run is not a fresh benchmark of every new workspace query. Peak traced allocations are not total RSS. Performance depends on history shape, storage, and scope.
+
+Project questions browser suite passed evidence preparation, synthetic answers, clickable sources, follow-ups, project isolation, reviewed saves, optimization evidence, and desktop/mobile layouts.
+
+## Project-question update
+
+Validated September 15, 2026, after integrating the published conversation replay, tool statistics, agent comparison, and exit-status parser fixes. The installed Claude CLI answered one short synthetic decision question with a valid source citation. No real history was supplied. Automated process tests use fake child processes to exercise stdin transport, output limits, timeout, cancellation, nonzero exits, and malformed results. Job tests cover explicit start, concurrency, retention bounds, and unknown citations. Evidence tests cover project scope, follow-up topics, and local-only preparation.
 
 ## Reproduce
 
@@ -34,6 +40,7 @@ Browser scripts require a development-only Playwright installation and Chromium.
 node scripts/browser_smoke.cjs --screenshots
 node scripts/workspace_smoke.cjs --screenshots
 node scripts/briefing_smoke.cjs --screenshots
+node scripts/ask_smoke.cjs --screenshots
 ```
 
 For MCP integration, set `MCP_SDK_ROOT` to an installed `@modelcontextprotocol/sdk` package directory and run `node scripts/mcp_smoke.mjs`. The official SDK is only a test dependency; the app runs with Python's standard library.

@@ -4,10 +4,11 @@ Agent Ledger handles sensitive local logs. The source repository and synthetic d
 
 ## Boundaries
 
-- No credentials or account connection. No outgoing network client in the analyzer.
+- Local indexing, search, and usage analysis make no model calls. Optional in-app answers invoke the installed Claude CLI, which uses its existing authentication and configured provider. Agent Ledger does not collect credentials or modify account settings.
 - Reads discovered Codex and Claude Code transcript JSONL files; writes only a separate private cache. Explicit text/Markdown imports are opt-in.
 - Common secret patterns are redacted before conversation text and notes are stored. This is not comprehensive secret detection or anonymization.
-- Optional MCP exposes read-only queries over stdio. Connected agents may send retrieved context to their model providers; there are no model calls in Ledger itself.
+- Optional MCP exposes read-only queries over stdio. Connected agents may send retrieved context to their model providers; the separate Ask a project flow can also invoke Claude explicitly.
+- Ask a project prepares bounded evidence locally and requires a separate authenticated start action to send it. The model subprocess receives data over stdin in a temporary empty working directory, with tools, MCP servers, settings sources, hooks, skills, and session persistence disabled. These are CLI restrictions, not an OS sandbox. Runs are cancellable, limited to two minutes and 1 MiB of output, and serialized. Questions and results are ephemeral; no automatic memory changes are permitted.
 - Notes can be edited/deleted through authenticated, bounded JSON requests. Notes and imported history share a private database; removing it deletes both.
 - Binds only to `127.0.0.1` on an ephemeral port. No remote serving option.
 - Per-launch random capability token, passed in a request header for API access. The initial URL fragment is removed from the address bar and retained in tab session storage.
@@ -25,4 +26,4 @@ For a suspected vulnerability, use the repository’s private vulnerability repo
 
 ## Publication review
 
-Run `python3 scripts/check_public_tree.py` and inspect the actual staged diff. The scanner checks the prospective Git file set for private artifact types, common personal paths, token-shaped values, private keys, and unexpected binaries. Only the manually inspected synthetic `docs/screenshots/demo-*.png` assets are exempted from text scanning. It is a guardrail, not comprehensive secret detection. Do not force-add ignored history/cache files.
+Run `python3 scripts/check_public_tree.py` and inspect the actual staged diff. In a shared workspace containing unrelated untracked projects, stage the intended files explicitly and use `--tracked-only` to inspect that publication set. The scanner checks the prospective Git file set for private artifact types, common personal paths, token-shaped values, private keys, and unexpected binaries. Only the manually inspected synthetic `docs/screenshots/demo-*.png` assets are exempted from text scanning. It is a guardrail, not comprehensive secret detection. Do not force-add ignored history/cache files.

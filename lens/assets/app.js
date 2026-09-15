@@ -96,7 +96,7 @@ async function overview(focus='') {
   else {const selected=data.sessions.find(s=>s.sid===state.session) || data.sessions[0];if(state.session!==selected.sid){state.responseOffset=0;$('turn').value='';}state.session=selected.sid;document.querySelectorAll('.session').forEach(n=>n.setAttribute('aria-pressed',String(n.dataset.session===state.session)));await openSession(selected);}
   status('Local history ready');
 }
-function resetSession(){state.session='';state.responses=[];state.boundaries=[];state.selected=null;state.conversationSession=null;$('session-title').textContent='No session selected';$('session-project').textContent='';for(const id of ['chart','context-summary','context-readout','context-rows','detail','evidence','findings','session-totals','all-activity','legacy-amounts','diagnostics','finding-count','diagnostic-count','session-coverage','response-page','conversation','conversation-summary','conversation-page','tool-rows','tool-metrics','tool-count','tools-note','conversation-note'])clear(id);clear('turn');option($('turn'),'Whole session','');clear('response');option($('response'),'No responses','');for(const id of ['evidence-more','activity-more','legacy-more','diagnostics-more'])$(id).hidden=true;}
+function resetSession(){state.session='';state.responses=[];state.boundaries=[];state.selected=null;state.conversationSession=null;$('session-title').textContent='No session selected';$('session-project').textContent='';for(const id of ['chart','session-review','context-summary','context-readout','context-rows','detail','evidence','findings','session-totals','all-activity','legacy-amounts','diagnostics','finding-count','diagnostic-count','session-coverage','response-page','conversation','conversation-summary','conversation-page','tool-rows','tool-metrics','tool-count','tools-note','conversation-note'])clear(id);clear('turn');option($('turn'),'Whole session','');clear('response');option($('response'),'No responses','');for(const id of ['evidence-more','activity-more','legacy-more','diagnostics-more'])$(id).hidden=true;}
 async function openSession(session) {
   if(session){$('session-title').textContent=session.title||'Session · '+session.first.slice(0,10);$('session-project').textContent=session.project+(session.parent?' · Parent: '+session.parent+' · '+(session.relationship||'relationship unspecified'):'');}
   const selectedScope=JSON.stringify(scope());
@@ -105,6 +105,7 @@ async function openSession(session) {
   state.responses=data.responses;
   state.boundaries=data.boundaries||[];
   renderContext(data);
+  renderSessionReview(data,findings);
   const turn=$('turn').value; clear('turn'); option($('turn'),'Whole session',''); data.turns.forEach((t,i)=>{option($('turn'),'Task '+(i+1)+' · '+t.records+' records',t.turn);$('turn').lastElementChild.title=t.turn;});$('turn').value=turn;
   $('session-coverage').textContent=data.totals.legacy||data.totals.invalid?'Partial coverage':'';
   $('session-totals').textContent=compact(data.totals.total)+' tokens · '+credits(data.totals.credits,2)+' estimated credits'+(data.totals.unpriced?' (partial)':'')+' · '+data.totals.responses+' responses'+(data.totals.legacy?' · '+data.totals.legacy+' legacy amounts excluded from response chart':'');
@@ -149,6 +150,31 @@ function drawChart(){
     svg.append(svgEl('text',{x:x+4,y:top+8,class:'compaction-text'},'context reset'));
   }
   $('chart').append(svg);$('chart-note').textContent=(sums.some(x=>x==null)?'Gray marks: unavailable breakdown. ':'')+(context&&rs.some(r=>!r.usage.errors.length&&r.usage.cached_input_tokens==null)?'Gray bars: input known, cache split unavailable. ':'')+(resets.size?'Dashed line: a recorded compaction reset the context here. ':'')+(credit?'Per-response rate estimates; not account charges.':context?'Height = input sent with this response, including cached context. This is not cumulative usage. Select a bar to see the change.':'Input includes reprocessed context. Unsplit output uses Other output.');
+}
+function renderSessionReview(data,findings){
+  clear('session-review');const root=$('session-review'),t=data.totals;
+  root.append(el('h3','Where this session’s usage went'));
+  const drivers=el('div',null,'usage-drivers');
+  for(const d of data.drivers){
+    const row=el('div',null,'usage-driver');const share=data.context_summary.total?Math.round(d.tokens/data.context_summary.total*100):0;
+    row.append(el('strong',`${share}% · ${compact(d.tokens)} tokens`),el('p',d.title),el('p',`${number(d.responses)} responses · ${compact(d.input)} input · ${compact(d.output)} output`,'small muted'));
+    const b=el('button','Inspect task');b.addEventListener('click',guarded(async()=>{state.session=d.sid;$('descendants').checked=false;$('turn').value=d.turn;state.responseOffset=0;await overview(d.sid);}));row.append(b);
+    if(d.citation){const source=el('button','Read request');source.addEventListener('click',guarded(()=>readCitation(d.citation)));row.append(source);}drivers.append(row);
+  }
+  root.append(drivers,el('p','Top tasks by valid native response tokens in this selection. Legacy amounts are excluded. Repeated context contributes input on each response.','section-note'));
+  const opportunities=[];
+  const failed=findings.repeated.find(r=>r.category==='Repeated command failures');
+  const repeated=findings.repeated.find(r=>r.category==='Repeated unchanged output'&&r.action_key!==failed?.action_key);
+  if(failed)opportunities.push({title:`The same failing command returned the same observed output ${failed.occurrences} times`,why:failed.action,action:'Try next time: diagnose the first failure, make one targeted change, then rerun the relevant check. Repeating a failure can be necessary; inspect whether anything changed between attempts.',open:()=>showActivity(failed.evidence[0].id)});
+  if(repeated)opportunities.push({title:`Repeated output appeared ${repeated.occurrences} times`,why:repeated.action,action:'Try next time: keep the relevant result or a short summary and reread only after its inputs change. A matching bounded output does not prove the whole file or environment was unchanged.',open:()=>showActivity(repeated.evidence[0].id)});
+  const large=findings.largest.find(a=>a.bytes>=20000);
+  if(large)opportunities.push({title:`A tool returned ${compact(large.bytes)} bytes of text`,why:large.action,action:'Try next time: search for the relevant symbols first, then read a bounded excerpt. For logs, keep the failing assertion and enough context to diagnose it. Bytes are observed text size, not billed tokens.',open:()=>showActivity(large.id)});
+  if(findings.jumps[0]?.jump>=10000){const j=findings.jumps[0];opportunities.push({title:`Context grew by ${compact(j.jump)} tokens between matching responses`,why:'More input was sent with the later response. The logs do not identify exactly which content caused every added token.',action:'Try next time: keep the objective and relevant results focused. When changing tasks, save a verified handoff and start fresh. Do not discard context still needed to finish the work.',open:()=>showFindingResponse(j.id)});}
+  if(t.output&&t.reasoning!=null&&t.reasoning/t.output>.6&&findings.reasoning[0])opportunities.push({title:`${Math.round(t.reasoning/t.output*100)}% of output was recorded reasoning`,why:'Reasoning is included in output tokens. Complex work may justify it.',action:'Try next time: separate routine edits from unresolved design questions and give clear acceptance checks. Compare similar tasks before deciding whether a different model or effort is appropriate.',open:()=>showFindingResponse(findings.reasoning[0].id)});
+  root.append(el('h3','Opportunities to investigate'));
+  for(const item of opportunities.slice(0,3)){const row=el('details',null,'optimization');row.append(el('summary',item.title),el('p',item.why),el('p',item.action));const b=el('button','Inspect evidence');b.addEventListener('click',guarded(item.open));row.append(b);root.append(row);}
+  if(!opportunities.length)root.append(el('p','No supported optimization pattern stood out. Inspect the largest task and its conversation to judge whether the work was necessary.','section-note'));
+  root.append(el('p','These observations can suggest experiments; they do not establish waste or predict savings.','section-note'));
 }
 function contextChange(v){return v==null?'No baseline':(v>0?'+':'')+number(v);}
 function renderContextReadout(r){

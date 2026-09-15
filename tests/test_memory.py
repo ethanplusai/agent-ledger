@@ -135,6 +135,16 @@ class MemoryHTTPTests(unittest.TestCase):
         except urllib.error.HTTPError as error:
             try:return error.code,json.load(error)
             finally:error.close()
+    def test_question_routes_require_capability_and_cannot_start_unreviewed_text(self):
+        self.assertEqual(self.request('ask/options',token=False)[0],403)
+        self.assertEqual(self.request('ask/prepare',{'project':'/demo/project','question':'why'},token=False)[0],403)
+        self.assertEqual(self.request('ask/start',{'id':'not-a-packet'},origin='https://example.invalid')[0],403)
+        self.server.questions.demo=True
+        self.assertEqual(self.request('ask/start',{'id':'not-a-packet'})[0],400)
+        self.assertEqual(self.request('ask/start',{'id':[]})[0],400)
+        self.assertEqual(self.request('ask/prepare',{'project':'','question':'why'})[0],400)
+        self.assertEqual(self.request('ask/status?id=missing')[0],400)
+
     def test_notes_require_capability_and_same_origin(self):
         p={'title':'Decision','text':'Use a local index'}
         self.assertEqual(self.request('notes/save',p,token=False)[0],403)

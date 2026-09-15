@@ -2,7 +2,7 @@
 
 **Understand your agent's work. Recover the context worth keeping.**
 
-A local workspace for Claude Code and Codex history. Start with understandable usage findings, search past conversations, and save useful decisions for your next session. Optionally let your coding agent retrieve that context through a read-only MCP connection.
+A local workspace for Claude Code and Codex history. Recover why decisions were made, understand session usage, and save useful context for your next session. Optionally let your coding agent retrieve that context through a read-only MCP connection.
 
 No website, hosted service, account, model subscription, or build step. Clone the public source and run it on your computer. MIT licensed; Python 3.10+ and its standard library, including SQLite FTS5.
 
@@ -30,6 +30,17 @@ python3 ledger.py --demo
 
 Demo mode uses generated Claude and Codex examples in a temporary directory, removed on normal exit. Saving notes in demo mode is temporary too.
 
+## Ask “why did we decide that?”
+
+1. Select a project and open **Ask a project**. Ask about a specific decision, failed approach, or constraint.
+2. **Find context** retrieves local conversation excerpts and this project’s saved notes. Expand or open sources to check what was found. No model is called yet.
+3. **Ask Claude** sends that evidence, your question, and up to four earlier exchanges through your installed, signed-in Claude Code CLI. The answer includes clickable source references. This uses your configured provider and consumes model usage.
+4. Ask follow-up questions, or choose **Review as a saved decision** to edit the answer before saving. **Review project memory** asks for conflicts, outdated notes, and proposed edits. Open a note’s source to edit it; the model cannot save, merge, or delete anything itself.
+
+Search and source review need no agent connection. In-app answers currently support Claude Code; Codex remains available through the separate read-only MCP connection below. The app does not change model, effort, speed, or account settings. CLI runs use no model override, tools, MCP servers, skills, or persisted chat sessions. They have a two-minute timeout and can be cancelled. One answer runs at a time.
+
+Retrieval is bounded keyword relevance plus nearby messages, with recent excerpts as a fallback—not semantic search or a complete investigation of all history. At most 16 conversation excerpts and eight project notes are included. Global notes are excluded from this flow. A cited source may still be misinterpreted; check the explanation before saving. Conversations remain in tab memory and are lost on reload; saved decisions persist. Demo answers are explicitly synthetic and never call a model.
+
 ## Continue a project in one flow
 
 1. On Start, choose a recent project or use the project selector.
@@ -42,6 +53,8 @@ The briefing collects excerpts from three recent sessions and up to six saved no
 Usage review runs only when requested for a selected project. Start no longer performs an all-history findings scan on every visit.
 
 ## Understand what used your tokens
+
+Within a session, **Where this session’s usage went** ranks the top recorded tasks by token contribution and links to their requests. **Opportunities to investigate** connects repeated failures, repeated output, large tool results, context growth, and high reasoning share to practical experiments. Inspect evidence before changing how you work: the observations do not establish wasted tokens or predict savings.
 
 Open **Usage** to see how much was input versus generated output, and which component dominates the available credit estimate. Token volume and estimated credits are different measurements; neither reveals your remaining subscription allowance.
 

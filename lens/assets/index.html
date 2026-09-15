@@ -20,7 +20,7 @@
 </header>
 <main>
   <nav class="primary-nav" aria-label="Workspace">
-    <button data-page="home" aria-current="page">Start</button><button data-page="search">Search</button><button data-page="notes">Saved context</button><button data-page="usage">Usage</button><button data-page="connect">Connect an agent</button>
+    <button data-page="home" aria-current="page">Start</button><button data-page="ask">Ask a project</button><button data-page="search">Search</button><button data-page="notes">Saved context</button><button data-page="usage">Usage</button><button data-page="connect">Connect an agent</button>
     <label class="global-project"><span class="sr-only">Project</span><select id="project"><option value="">All projects</option></select></label>
   </nav>
   <section id="page-home" class="page" aria-labelledby="home-title">
@@ -38,13 +38,30 @@
         <div class="form-actions"><button id="copy-handoff">Copy handoff</button><button id="save-handoff">Save handoff</button></div><p id="handoff-status" role="status"></p>
       </section>
     </section>
-    <div class="section-heading"><h2>Find an earlier decision</h2></div>
+    <div class="section-heading"><h2>Why did we decide that?</h2></div>
+    <p class="section-note">Ask about rejected approaches, constraints, or decisions across your project’s history.</p><button id="home-ask">Ask about a decision</button><button id="home-cleanup" class="quiet-button">Review project memory</button>
     <form id="home-search" class="search-form"><label class="sr-only" for="home-query">Search past work</label><input id="home-query" type="search" placeholder="Find a decision, an error, or something you built…" maxlength="400" required><button>Search history</button></form>
     <p id="home-summary" class="muted"></p>
     <div class="section-heading"><h2>Review how the work went</h2><button id="review-history">Review this project’s usage</button></div><p id="review-hint" class="section-note">Choose a project to investigate repeated failures, large results, or growing context.</p>
     <div class="home-grid"><section id="usage-review" aria-labelledby="insights-title" hidden><div class="section-heading"><h2 id="insights-title">Worth a closer look</h2></div><p class="section-note">Observed patterns with practical next steps. Start with the evidence.</p><div id="insights"></div></section>
     <section aria-labelledby="recent-title"><div class="section-heading"><h2 id="recent-title">Recent work</h2></div><div id="recent"></div><button id="recent-more" hidden>More sessions</button></section></div>
     <section id="daily-review" hidden class="daily-section" aria-labelledby="daily-title"><div class="section-heading"><h2 id="daily-title">Daily activity</h2><span class="muted">Last 12 months · UTC</span></div><p class="section-note">Select a day to inspect its recorded usage. Darker cells mean more tokens, not better or worse work.</p><div class="daily-scroll"><div id="daily" class="daily-grid"></div></div></section>
+  </section>
+  <section id="page-ask" class="page" aria-labelledby="ask-title" hidden>
+    <h1 id="ask-title">Why did we decide that?</h1>
+    <p class="lede">Recover the constraints, failed attempts, and conversations behind your project. Find local evidence, then ask Claude to explain it with sources.</p>
+    <div id="ask-examples" class="ask-examples">
+      <button data-question="Why did we choose this approach?" type="button">Explain a decision</button>
+      <button data-question="What approaches failed, and what did we learn?" type="button">Recover failed attempts</button>
+      <button data-question="Which saved project notes conflict or appear outdated? Propose edits with sources; do not change anything." type="button">Review project memory</button>
+    </div>
+    <form id="ask-form" class="search-form"><label class="sr-only" for="ask-question">Question about this project</label><input id="ask-question" maxlength="2000" placeholder="Why did we choose SQLite instead of a hosted database?" required><button id="ask-find">Find context</button></form>
+    <p id="ask-provider" class="section-note"></p><p id="ask-status" role="status"></p><button id="ask-new" class="quiet-button">New conversation</button><details id="ask-history" hidden><summary>Earlier questions in this conversation</summary><div id="ask-history-text"></div></details>
+    <details id="ask-evidence" hidden open><summary>Evidence for this question</summary><p id="ask-coverage" class="section-note"></p><div id="ask-sources"></div>
+      <p id="ask-disclosure" class="section-note">Ask Claude sends these excerpts, your question, and up to four prior exchanges to your configured Claude provider through the installed CLI. It consumes model usage. The subprocess has no tools and cannot edit memory. Source review itself stays local.</p>
+      <button id="ask-run">Ask Claude</button><button id="ask-cancel" hidden>Cancel answer</button>
+    </details>
+    <section id="ask-answer" hidden><h2>Answer</h2><p id="ask-answer-notice" class="section-note"></p><div id="ask-answer-text"></div><div class="form-actions"><button id="ask-save">Review as a saved decision</button><button id="ask-copy">Copy answer</button></div><p class="section-note">Questions and answers stay in this tab’s memory. Save useful decisions before closing or reloading. To revise an existing note, open its source and use Read / edit.</p></section>
   </section>
   <section id="page-search" class="page" aria-labelledby="search-title" hidden>
     <h1 id="search-title">Recover past work</h1><p class="lede">Search recorded conversations and the context you chose to keep.</p>
@@ -105,6 +122,7 @@
         <label class="measure-control"><span class="sr-only">Chart measure</span><select id="measure"><option value="context">Context per response</option><option value="tokens">Recorded tokens</option><option value="credits">Estimated credits</option></select></label>
       </div>
       <div class="chart-meta"><p id="session-totals"></p><span id="session-coverage"></span></div>
+      <section id="session-review" class="session-review" aria-label="Usage contributors and opportunities"></section>
       <div id="context-summary" class="context-summary"></div>
       <div class="chart-wrap"><div id="chart" role="group" aria-label="Usage by model response"></div></div>
       <div class="chart-footer">
@@ -157,7 +175,7 @@
     </section>
   </div>
   </div>
-  <footer><span>Processed on this computer.</span><span>Agent Ledger 0.2</span></footer>
+  <footer><span>Local index · optional Claude answers.</span><span>Agent Ledger 0.2</span></footer>
 </main>
 </body>
 </html>

@@ -131,6 +131,22 @@ class StoreCase(StoreFixture, unittest.TestCase):
         detail=report.detail({'id':data['responses'][0]['id']})
         self.assertTrue(detail['message'].startswith('message:'))
 
+    def test_task_contributors_count_unique_valid_responses_and_exclude_legacy(self):
+        self.write([meta(),context(),native('a'),native('a'),native('invalid',usage=dict(U,total_tokens=1)),legacy()]);self.ingest()
+        data=Report(self.db).session({})
+        self.assertEqual(len(data['drivers']),1)
+        self.assertEqual(data['drivers'][0]['tokens'],11000)
+        self.assertEqual(data['drivers'][0]['responses'],1)
+        self.assertEqual(data['context_summary']['total'],11000)
+
+    def test_task_contributors_do_not_merge_same_turn_labels_across_sources(self):
+        self.write([meta('a'),context(),native('a')])
+        self.write([meta('b'),context(),native('b')],name='b.jsonl');self.ingest()
+        data=Report(self.db).session({})
+        self.assertEqual(len(data['drivers']),2)
+        self.assertEqual({d['sid'] for d in data['drivers']},{'a','b'})
+        self.assertEqual(sum(d['tokens'] for d in data['drivers']),data['context_summary']['total'])
+
     def test_context_crosses_page_boundary_and_preserves_decreases(self):
         def usage(i):
             return dict(U,input_tokens=i,cached_input_tokens=0,total_tokens=i+1000)

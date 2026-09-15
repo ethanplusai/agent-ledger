@@ -45,7 +45,7 @@ The regression suite covers arithmetic and rates, deduplication and provenance, 
 
 ## Deferred
 
-Live hooks and alerts; account billing reconciliation; API-dollar estimates; near-duplicate command heuristics; model-generated recommendations; exact tool/file costs; hosted/multiuser access; share-safe export; Cursor and cloud-only agents.
+Live hooks and alerts; account billing reconciliation; API-dollar estimates; near-duplicate command heuristics; automatic model-generated usage optimization; exact tool/file costs; hosted/multiuser access; share-safe export; Cursor and cloud-only agents.
 
 ## Combined workspace scope
 
@@ -62,3 +62,11 @@ The combined cache uses a new default directory and filename, so prior Usage Len
 Start offers recent project shortcuts and a project briefing. The briefing collects the latest assistant excerpt from each of three recent sessions and up to six saved notes, with citations, clipping labels, and explicit historical-report status. Users supply the next objective and review an editable handoff before copying or saving. No model is invoked and no inferred task status is presented as fact. Per-project drafts are held only in page memory; explicit saves persist context.
 
 The read-only `project_briefing` MCP tool exposes the same bounded collection. Start defers usage analysis until an explicit project review request. Existing cache data remains compatible.
+
+## Project questions and session explanations
+
+The primary memory question is “Why did we decide that?” A project question retrieves bounded relevant excerpts and surrounding messages locally. A separate Ask Claude action sends the reviewed packet and bounded follow-up history to the installed CLI. Answers distinguish explicit decisions, rejected attempts, constraints, and inference, with source links. Unrecognized citations are not linked and cause a warning. The model can propose memory cleanup; all changes use the existing editable note form and explicit save/delete actions.
+
+The initial in-app provider is Claude Code. Search, retrieval, and usage explanations work without it. No import or page-load model calls, automatic agent settings changes, or implicit background cleanup. Single active run, cancellation, deadline, bounded output, project isolation, and transient chat state are required. This first implementation supplies a fixed evidence packet; it does not run an autonomous search loop or promise exhaustive recall.
+
+Usage explanations rank valid native response tokens by source/task after identity deduplication. Legacy and conflicting records do not enter those ranks. Optimization suggestions describe observed repetition, failures, large results, context growth, or reasoning concentration; they must link to evidence and never claim exact per-tool costs, waste, or guaranteed savings.

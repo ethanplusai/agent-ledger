@@ -1,7 +1,11 @@
 # Changelog
 
-## Unreleased — conversation cost, tool breakdown and agent comparison
+## Unreleased — project questions and usage investigation
 
+- Ask why a project decision was made: review locally retrieved evidence, then request a cited answer through the installed Claude Code CLI. Follow-up questions stay scoped to the project.
+- Review proposed memory cleanup and edit an answer as a saved decision. Models cannot change notes; saves and deletes remain explicit.
+- Rank a session’s largest recorded tasks and connect repeated failures, repeated output, large results, and context growth to evidence-backed optimization experiments.
+- Bound optional answers with one active subprocess, cancellation, a two-minute deadline, and an output limit. Demo answers never invoke a model.
 - Replay a session as it happened: each recorded message shows the tokens attributed to it, a running session total, the tool calls that followed, and any failures or context resets.
 - Break a scope down by tool: observed results, failures, text returned, and the largest single result, for one session or all filtered history.
 - Compare Claude Code and Codex side by side, and narrow every usage view to one agent.

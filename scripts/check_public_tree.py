@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Fail on common private artifacts/secrets in the prospective Git publication set."""
 import re
+import argparse
 import subprocess
 from pathlib import Path
 
@@ -15,7 +16,12 @@ PATTERNS = {
 
 
 def main():
-    result = subprocess.run(['git','ls-files','-z','--cached','--others','--exclude-standard'], cwd=ROOT, capture_output=True, check=True)
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--tracked-only',action='store_true',help='Check the staged/tracked publication set, excluding unrelated untracked work')
+    args=parser.parse_args()
+    command=['git','ls-files','-z','--cached']
+    if not args.tracked_only:command+=['--others','--exclude-standard']
+    result = subprocess.run(command, cwd=ROOT, capture_output=True, check=True)
     failures=[]; count=0
     for raw in set(result.stdout.split(b'\0')):
         if not raw: continue
